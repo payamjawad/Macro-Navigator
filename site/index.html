@@ -162,6 +162,7 @@ function renderEconomy() {
         <div style="display:flex;flex-direction:column;gap:2px"><b style="font-size:14px">${esc(w.name)}</b><span class="dim">${esc(w.rule)}</span></div>
         <b style="font-size:13px;color:var(--ink2);white-space:nowrap">Now ${esc(w.now)}</b></div>`).join("")}</section>
     </div>
+    ${explainBox("economy", "Explain today's economic regime in plain English for a non-expert: what each pillar shows, why it gets this label, and what it means for stock markets.", "")}
     <a class="btn primary" href="#sp500" style="justify-content:center;text-decoration:none">What this means for the S&amp;P 500</a>`;
 }
 
@@ -220,6 +221,7 @@ function renderMarket() {
         <span class="dim" style="line-height:1.45">Next-12-month outcome after each. Similar months averaged ${pct(a.mean, 1)}, positive ${pct(a.up, 0, false)} of the time.</span></div>
       <div class="mini"><b style="font-size:14px">Model track record</b><span class="p" style="font-size:13px">${usable.length ? "Usable out of sample: " + esc(usable.join(", ")) : "No model has a proven 12-month edge out of sample since 1975, so odds shown are the historical base rate."}</span></div>
     </section></div>
+    ${explainBox("sp500", "Explain the S&P 500 view in plain English: what drives the stance, what each horizon means, and what history says about buying now.", "")}
     <section class="reading"><span style="font-size:12px;color:#93C5FD">The reading</span><p>${esc(reading)}</p></section>`;
 }
 
@@ -236,11 +238,51 @@ function buyCard(c, combo, since80) {
     <span class="dim" style="font-size:11px">What past data shows, not a recommendation.</span></section>`;
 }
 
+function assetBuyCard(t) {
+  const c = (S.summary.market || {}).criteria || {}, m = t.metrics || {}, ev = t.risk_evidence;
+  const trig = (c.triggers || []).map(x => `${x.rule.toLowerCase()} (now: ${x.now})`).join("; or ");
+  const parts = [];
+  if (c.level === "High risk" || c.level === "Elevated risk") parts.push(`The market backdrop is ${c.level.toLowerCase()}: history points to a rougher ride rather than a predictable fall.`);
+  else if (c.level === "Recovery window") parts.push("The market backdrop is a recovery window, historically one of the better times to add risk.");
+  else parts.push("The market backdrop is normal, with no proven warning signal on.");
+  if (ev) parts.push(`In ${ev.episodes} past episodes like now, ${t.symbol} rose within 12 months ${pct(ev.rose, 0, false)} of the time (versus ${pct(ev.rose_other, 0, false)} otherwise), and its average worst dip was ${pct(ev.dip)} against ${pct(ev.spx_dip)} for the S&P.`);
+  if (m.above_200d === false) parts.push(`Its own trend is negative (below its 200-day average${m.sma200 ? ", about " + m.sma200.toLocaleString() : ""}); momentum research finds that prices below their long-term trend have tended to keep lagging in the short run.`);
+  else if (m.above_200d) parts.push("Its own trend is positive (above its 200-day average), which momentum research counts in its favour short term.");
+  if (m.beta != null && m.beta > 1.1) parts.push(`It moves about ${m.beta.toFixed(1)}× the market, so expect larger swings both ways.`);
+  if ((c.level === "High risk" || c.level === "Elevated risk") && trig) parts.push(`Market moments that have marked better entry points: ${trig}.`);
+  return `<section class="card"><span class="dim">Is now a good time to buy ${esc(t.symbol)}?</span><p class="p">${esc(parts.join(" "))}</p>
+    <span class="dim" style="font-size:11px">What past data shows, not a recommendation.</span></section>`;
+}
+function explainBox(key, question, symbol) {
+  return `<section class="card"><div class="row"><b style="font-size:14px;color:var(--ink)">Plain-English explanation</b>
+    <button class="btn" type="button" id="explainBtn" data-q="${esc(question)}" data-s="${esc(symbol || "")}" data-k="${esc(key)}">Explain with AI</button></div>
+    <div id="explainOut"></div></section>`;
+}
+function wireExplain() {
+  const b = $("#explainBtn"); if (!b) return;
+  const key = "mn_ex_" + b.dataset.k + "_" + (S.summary.prices_to || S.summary.data_to);
+  const show = d => { $("#explainOut").innerHTML = bubble({role: "assistant", ...d}).replace('class="ai', 'style="max-width:100%" class="ai'); };
+  try { const c = JSON.parse(localStorage.getItem(key) || "null"); if (c) { show(c); b.textContent = "Explained"; } } catch (e) {}
+  b.onclick = async () => {
+    b.disabled = true; show({text: "Writing an explanation from today's data…", wait: true});
+    try {
+      const r = await fetch("api/chat", {method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({messages: [{role: "user", text: b.dataset.q}], symbol: b.dataset.s || null, asset: S.liveAsset || null})});
+      const d = await r.json();
+      const out = {text: d.text || d.error || "No answer.", looked: d.looked, check: d.check, model: d.model};
+      show(out); if (r.ok && !/Locked/.test(d.model || "")) localStorage.setItem(key, JSON.stringify(out));
+    } catch (e) { show({text: "The explanation needs the Cloudflare deployment."}); }
+    b.disabled = false;
+  };
+}
+
 // ------------------------------------------------------------------ index / stock view
 function renderAsset(t, opts = {}) {
   const m = t.metrics || {}, ev = t.risk_evidence;
   const b = m.beta;
-  return `<section class="card"><div class="row" style="font-size:15px"><b style="font-size:20px;color:var(--ink)">${esc(t.name)} <span class="dim" style="font-size:14px;font-weight:500">${esc(t.symbol)}</span></b>
+  return (t.live ? `<div class="note">Live lookup from prices: ${esc(t.symbol)} is not in the daily list, so the sector and SEC fundamentals layers are missing.
+      <button class="btn primary" type="button" id="addWatch" style="margin-top:8px">Add ${esc(t.symbol)} to watchlist</button></div>` : "")
+    + `<section class="card"><div class="row" style="font-size:15px"><b style="font-size:20px;color:var(--ink)">${esc(t.name)} <span class="dim" style="font-size:14px;font-weight:500">${esc(t.symbol)}</span></b>
       <span class="dim">${esc(t.sector || (t.kind === "stock" ? "" : t.kind.toUpperCase()))}</span></div>
       <div class="row"><span>Last ${esc(m.date || "")}</span><b style="color:var(--ink)">${m.price == null ? "n/a" : m.price.toLocaleString(undefined, {maximumFractionDigits: 2})} <span style="color:${(m.chg_1d || 0) >= 0 ? TONE.good : TONE.bad}">${pct(m.chg_1d, 1)}</span></b></div>
       <span class="stance" style="color:${TONE[t.headline_tone]}">${esc(t.headline)}</span>
@@ -260,6 +302,10 @@ function renderAsset(t, opts = {}) {
         <div class="row"><span>Average worst dip within 12 months</span><b style="color:${TONE.bad}">${pct(ev.dip)} <span class="dim" style="font-weight:400">S&amp;P ${pct(ev.spx_dip)}</span></b></div>
         <div class="row"><span>Rose within 12 months</span><b>${pct(ev.rose, 0, false)} <span class="dim" style="font-weight:400">vs ${pct(ev.rose_other, 0, false)} otherwise</span></b></div></div>` : ""}
     </section></div>
+    ${assetBuyCard(t)}
+    ${explainBox("asset_" + t.symbol, t.symbol === "^NDX"
+      ? "Explain the Nasdaq 100 view in plain English: how it differs from the S&P 500, what each layer and horizon means, and what history says about buying now."
+      : `Explain the ${t.symbol} view in plain English: what each layer shows, what drives each horizon, and what history says about buying now.`, t.symbol)}
     <section style="display:flex;flex-direction:column;gap:8px"><h2>What would flip the view</h2>
       ${t.flips.map(f => `<div class="mini"><b style="font-size:14px">${esc(f.name)}</b><span class="dim" style="font-size:13px">${esc(f.text)}</span></div>`).join("")}</section>
     <section class="reading"><span style="font-size:12px;color:#93C5FD">How to read it</span><p>${esc(opts.reading || "Start with the layers: the more of them point the same way, the stronger the view. Only tags marked Proven or Research-backed rest on tested evidence.")}</p></section>`;
@@ -280,7 +326,12 @@ async function renderStock(sym) {
   const picker = `<section class="card"><span class="dim">Pick a stock, or type any ticker in the search box</span>
     <div class="chips">${[...new Set([...recent, ...quick])].slice(0, 10).map(s => `<a class="chip" href="#stock/${encodeURIComponent(s)}" style="display:inline-flex;align-items:center;text-decoration:none">${esc(s)}</a>`).join("")}</div></section>`;
   if (!sym) return picker;
-  const t = await loadAsset(sym);
+  let t = await loadAsset(sym);
+  S.liveAsset = null;
+  if (!t) {
+    try { const r = await fetch("api/quote?s=" + encodeURIComponent(sym)); if (r.ok) { t = await r.json(); S.liveAsset = t; } } catch (e) {}
+    if (t) return renderAsset(t);
+  }
   if (!t) return `<section class="card"><b style="font-size:16px">${esc(sym)} is not in today's list</b>
       <p class="p">Each run covers the S&amp;P 500, the Nasdaq 100 and your watchlist. Add ${esc(sym)} to the watchlist and it appears after the next refresh.</p>
       <button class="btn primary" type="button" id="addWatch" style="align-self:flex-start">Add ${esc(sym)} to watchlist</button></section>` + picker;
@@ -346,6 +397,7 @@ async function draw() {
       $("#clearChat").onclick = e => { e.preventDefault(); S.chat = []; localStorage.removeItem("mn_chat"); draw(); };
       const msgs = $("#msgs"); if (msgs.lastElementChild) msgs.lastElementChild.scrollIntoView({block: "end"});
     } else v.innerHTML = renderMarket();
+    wireExplain();
     const add = $("#addWatch");
     if (add) add.onclick = async () => {
       add.disabled = true;

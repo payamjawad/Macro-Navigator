@@ -54,9 +54,9 @@ export function compact(summary, assets) {
       combination_now: m.combo ? {signals: m.combo.signals, episodes: m.combo.eps, avg_next_12m_when_on: m.combo.on_mean,
         avg_next_12m_otherwise: m.combo.off_mean, history: m.combo.episodes_list} : null},
     assets: assets.map(t => ({symbol: t.symbol, name: t.name, kind: t.kind, sector: t.sector, headline: t.headline,
-      layers: t.layers.map(l => `${l.name}: ${l.text} [${({good: "tailwind", bad: "headwind", warn: "mixed"})[l.tone] || "n/a"}]`),
+      layers: (t.layers || []).map(l => `${l.name}: ${l.text} [${({good: "tailwind", bad: "headwind", warn: "mixed"})[l.tone] || "n/a"}]`),
       horizons: t.horizons, metrics: t.metrics, fundamentals: t.fundamentals, risk_evidence_in_months_like_now: t.risk_evidence,
-      what_would_flip_it: t.flips.map(f => `${f.name}: ${f.text}`), reading: t.reading})),
+      what_would_flip_it: (t.flips || []).map(f => `${f.name}: ${f.text}`), reading: t.reading})),
   };
 }
 
@@ -155,6 +155,11 @@ export async function onRequestPost({request, env}) {
   for (const s of findSymbols(question, universe, body.symbol)) {
     const t = await asset(`/data/tickers/${files.get(s)}.json`);
     if (t) { assets.push(t); looked.push(`${s} prices, sector${t.kind === "stock" ? ", SEC filings" : ""}`); }
+  }
+  if (!assets.length && body.asset && typeof body.asset === "object" && JSON.stringify(body.asset).length < 20000
+      && String(body.asset.symbol || "").toUpperCase() === String(body.symbol || "").toUpperCase()) {
+    assets.push(body.asset);                      // a live lookup the app already made for an unlisted ticker
+    looked.push(`${body.asset.symbol} live prices`);
   }
   const sources = [{label: "S&P 500 stance", href: "#sp500"}];
   if (looked.includes("economy")) sources.push({label: "Economy", href: "#economy"});
