@@ -48,7 +48,7 @@ jobs:
 
       - name: 3 · Build the app
         env:
-          SEC_CONTACT: ${{ github.actor }}@users.noreply.github.com
+          SEC_CONTACT: ${{ secrets.SEC_CONTACT || format('{0}@users.noreply.github.com', github.actor) }}
         run: python scripts/build_site.py --store data/store --out deploy
 
       - name: Save data store
