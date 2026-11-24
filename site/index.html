@@ -129,9 +129,12 @@ function horizonCards(list) {
 // ------------------------------------------------------------------ header
 function renderHeader() {
   const s = S.summary;
-  $("#asof").textContent = "Data to " + new Date(s.data_to + "T00:00:00").toLocaleDateString(undefined, {day: "numeric", month: "short"});
+  $("#asof").textContent = "Prices to " + new Date((s.prices_to || s.data_to) + "T00:00:00").toLocaleDateString(undefined, {day: "numeric", month: "short"});
+  const ref = new Date((s.prices_to || s.data_to) + "T00:00:00");
+  const stale = c => c.date && (ref - new Date(c.date + "T00:00:00")) / 864e5 > 3;
+  const short = d => new Date(d + "T00:00:00").toLocaleDateString(undefined, {day: "numeric", month: "short"});
   $("#strip").innerHTML = s.strip.map(c => `<div class="cell"><span class="dim" style="font-size:11px">${esc(c.label)}</span>
-    <span class="v">${esc(c.value)}</span><span style="font-size:11px;color:${TONE[c.tone] || TONE.neutral}">${esc(c.note)}</span></div>`).join("");
+    <span class="v">${esc(c.value)}</span><span style="font-size:11px;color:${TONE[c.tone] || TONE.neutral}">${esc(stale(c) ? "as of " + short(c.date) : c.note)}</span></div>`).join("");
   const h = s.health || [];
   if (h.length) { const el = $("#health"); el.hidden = false;
     el.textContent = "The last run could not load: " + h.join("; ") + ". Readings that depend on them show n/a or may be out of date. Press Refresh to try again."; }
@@ -143,6 +146,9 @@ function renderEconomy() {
   const e = S.summary.economy;
   return `<section class="card"><span class="dim">Economic regime</span>
       <span class="stance" style="font-size:26px;color:${TONE[e.tone]}">${esc(e.regime)}</span><p class="p">${esc(e.text)}</p></section>
+    ${(e.why || []).length ? `<section class="card"><span class="dim">Why this regime</span>
+      <b style="font-size:14px">${esc(e.rule || "")}</b>
+      ${e.why.map(w => `<div style="font-size:13px;line-height:1.45;color:var(--ink2)">• ${esc(w)}</div>`).join("")}</section>` : ""}
     <section class="grid2" aria-label="Four pillars">${e.pillars.map(p => `<div class="mini"><span class="dim">${esc(p.name)}</span>
       <span style="font-size:17px;font-weight:700;color:${TONE[p.tone]}">${esc(p.label)}</span>
       <span style="font-size:13px;line-height:1.4;color:var(--ink2)">${esc(p.detail)}</span></div>`).join("")}</section>
@@ -168,7 +174,9 @@ function renderMarket() {
   const meter = `<div class="meter" aria-label="Risk meter">${["Normal", "Elevated", "High"].map((n, i) =>
     `<div><i style="background:${i === idx ? meterCol[i] : meterOff[i]}"></i><span style="${i === idx ? "color:" + meterCol[i] + ";font-weight:600" : ""}">${n}</span></div>`).join("")}</div>`;
   const defOn = (c.defensive || []).filter(d => d.now), recOn = (c.recovery || []).filter(d => d.now), shortOn = (c.short || []).filter(d => d.now);
-  const capeOn = defOn.some(d => /CAPE/.test(d.signal));
+  const capeProven = (c.defensive || []).some(d => /CAPE/.test(d.signal));
+  const val = (m.drivers || []).find(d => d.name === "Valuation");
+  const capeOn = val ? val.on : defOn.some(d => /CAPE/.test(d.signal));
   const baseRate = /base rate/.test(call.basis || "");
   const horizons = [
     recOn.length ? {h: "1–3 months", text: "Better than usual", tone: "good", tag: "Proven"}
@@ -176,7 +184,8 @@ function renderMarket() {
       : {h: "1–3 months", text: "Normal", tone: "neutral", tag: "No signal"},
     baseRate ? {h: "6–12 months", text: "Normal odds, " + Math.round((call.base_rate || 0) * 100) + "%", tone: "neutral", tag: "No model edge"}
       : {h: "6–12 months", text: Math.round((call.prob_up_12m || 0) * 100) + "% chance higher", tone: "neutral", tag: "Model"},
-    capeOn ? {h: "3–5 years", text: "Below-average returns", tone: "bad", tag: "Proven"} : {h: "3–5 years", text: "Valuation not stretched", tone: "good", tag: "Proven"},
+    capeOn ? {h: "3–5 years", text: "Below-average returns", tone: "bad", tag: capeProven ? "Proven" : "Research-backed"}
+      : {h: "3–5 years", text: "Valuation not stretched", tone: "good", tag: capeProven ? "Proven" : "Research-backed"},
   ];
   const sig = d => `<div class="mini"><b style="font-size:14px">${esc(d.signal)}</b>
     <div class="row"><span>Rose within 12 months</span><span>${pct(d.on_up, 0, false)} <span class="dim">vs ${pct(d.off_up, 0, false)}</span></span></div>
@@ -195,7 +204,11 @@ function renderMarket() {
     "Normal": "No proven warning or re-entry signal is on. History says expect roughly normal odds."}[c.level] || "";
   return `<section class="card"><span class="dim">Market stance</span><span class="stance" style="font-size:34px;color:${TONE[levelTone]}">${esc(c.level || "n/a")}</span>
       ${meter}<p class="p">${esc(c.summary || "")}</p></section>
+    ${(m.drivers || []).length ? `<section class="card"><span class="dim">What's driving the stance</span>
+      ${m.drivers.map(d => `<div style="font-size:14px;line-height:1.45"><b style="color:${d.on ? TONE.bad : TONE.good}">${esc(d.name)}:</b> ${esc(d.text)}</div>`).join("")}
+      <p class="p" style="font-size:13px">${esc(m.economy_link || "")}</p></section>` : ""}
     ${horizonCards(horizons)}
+    ${buyCard(c, combo, since80)}
     <div class="wide2"><section style="display:flex;flex-direction:column;gap:8px"><h2>Why: signals on now</h2>
       ${defOn.map(sig).join("") || `<div class="mini"><span class="p">No defensive signal is on.</span></div>`}
       ${recOn.map(sig).join("")}
@@ -208,6 +221,19 @@ function renderMarket() {
       <div class="mini"><b style="font-size:14px">Model track record</b><span class="p" style="font-size:13px">${usable.length ? "Usable out of sample: " + esc(usable.join(", ")) : "No model has a proven 12-month edge out of sample since 1975, so odds shown are the historical base rate."}</span></div>
     </section></div>
     <section class="reading"><span style="font-size:12px;color:#93C5FD">The reading</span><p>${esc(reading)}</p></section>`;
+}
+
+function buyCard(c, combo, since80) {
+  const trig = (c.triggers || []).map(t => `${t.rule.toLowerCase()} (now: ${t.now})`).join("; or ");
+  let body;
+  if (c.level === "Recovery window") body = "This is one of the moments history favours: a proven re-entry signal is on, and the following 6 to 24 months have beaten the average after it.";
+  else if (c.level === "High risk" || c.level === "Elevated risk") {
+    const hist = combo ? `When these signals were on together (${combo.eps} times), the next 12 months averaged ${pct(combo.on_mean, 1)} versus ${pct(combo.off_mean, 1)} otherwise`
+      + (since80.length ? `, yet since 1980 ${since80.filter(x => x.next12 > 0).length} of ${since80.length} episodes ended higher` : "") + ". " : "";
+    body = `History does not say "don't buy"; it says expect a rougher ride. ${hist}These signals have been better at flagging deeper dips than at calling direction. The moments that have reliably marked better entry points: ${trig}. Spreading purchases over time lowers the risk of buying just before a deeper dip.`;
+  } else body = "No proven warning or re-entry signal is on, so history points to roughly normal odds: gains in about 7 of 10 years.";
+  return `<section class="card"><span class="dim">Is now a good time to buy?</span><p class="p">${esc(body)}</p>
+    <span class="dim" style="font-size:11px">What past data shows, not a recommendation.</span></section>`;
 }
 
 // ------------------------------------------------------------------ index / stock view

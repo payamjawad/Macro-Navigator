@@ -100,8 +100,10 @@ def strip_block(D: pd.DataFrame, P: pd.DataFrame) -> list[dict]:
     v, d = last(D["fred:DGS10"]) if "fred:DGS10" in D else (None, None)
     if v is not None:
         out.append({"label": "US 10-year", "value": f"{v:.2f}%", "note": "Yield", "tone": "neutral", "date": str(d.date())})
-    v, d = last(D["fred:DCOILBRENTEU"]) if "fred:DCOILBRENTEU" in D else (None, None)
-    if v is not None:
+    cands = [last(D[c]) for c in ("fred:DCOILBRENTEU", "px:BZ=F") if c in D]
+    cands = [c for c in cands if c[0] is not None]
+    if cands:
+        v, d = max(cands, key=lambda c: c[1])                 # whichever source is more recent
         out.append({"label": "Brent", "value": f"${v:.1f}", "note": "Crude oil", "tone": "neutral", "date": str(d.date())})
     v, d = last(D["fred:BAMLH0A0HYM2"]) if "fred:BAMLH0A0HYM2" in D else (None, None)
     if v is not None:
@@ -173,9 +175,27 @@ def economy_block(P: pd.DataFrame, res: dict) -> dict:
     else:
         regime, tone, text = "Expansion, inflation contained", "good", "Growth is holding, inflation is near target and credit is calm."
 
+    rule = {"Credit stress": "Credit stress: high-yield spread at 500 bp or more, or Baa spread up 0.5 pts in 6 months",
+            "Slowdown": "Slowdown: Sahm indicator at 0.50 or more",
+            "Late cycle, held back by inflation": "Late cycle: growth holding, inflation above target and the Fed tightening",
+            "Expansion with sticky inflation": "Sticky inflation: growth holding but inflation above target",
+            "Slowing, policy easing": "Slowing: growth cooling while the Fed cuts",
+            "Expansion, inflation contained": "Expansion: growth holding, inflation near target, credit calm"}[regime]
+    why = []
+    if sahm is not None:
+        why.append(f"Growth {growth[0].lower()}: Sahm indicator {sahm:.2f} (recessions have started near 0.50)"
+                   + (f"; payrolls averaging {pay3:+.0f}k a month" if pay3 is not None else ""))
+    if pce_yoy is not None:
+        why.append(f"Inflation {infl[0].lower()}: core PCE {pce_yoy:.1f}% against the Fed's 2% target (above target from 2.5%)"
+                   + (f"; CPI {cpi_yoy:.1f}%" if cpi_yoy is not None else ""))
+    if ff_up is not None:
+        why.append(f"Policy {policy[0].lower()}: Fed funds {ff_up - 0.25:.2f}–{ff_up:.2f}%, {ff6 * 100:+.0f} bp over 6 months")
+    if hy is not None:
+        why.append(f"Credit {credit[0].lower()}: high-yield spread {hy:.0f} bp (stress from about 500)"
+                   + (f"; Baa spread {spread6:+.2f} pts in 6 months (stress from +0.5)" if spread6 is not None else ""))
     state = ((res.get("analog") or {}).get("state")) or {}
     return {
-        "regime": regime, "tone": tone, "text": text,
+        "regime": regime, "tone": tone, "text": text, "rule": rule, "why": why,
         "pillars": [
             {"name": "Growth", "label": growth[0], "tone": growth[1],
              "detail": f"Unemployment {unrate:.1f}%, payrolls {pay_last:+.0f}k last month" if unrate is not None and pay_last is not None else "n/a"},
@@ -447,14 +467,35 @@ def ticker_view(item: dict, prices: pd.DataFrame, spx: pd.Series, fund: dict, ec
 def build(store: Path, out: Path, skip_network: bool = False) -> dict:
     t0 = time.time()
     P = load_panel(store)
-    D = load_daily(store, cols=("px:^GSPC", "px:^VIX", "fred:DGS10", "fred:DCOILBRENTEU", "fred:BAMLH0A0HYM2", "fred:DFEDTARU"))
+    D = load_daily(store, cols=("px:^GSPC", "px:^VIX", "fred:DGS10", "fred:DCOILBRENTEU", "px:BZ=F", "fred:BAMLH0A0HYM2", "fred:DFEDTARU"))
     res = json.loads((store / "engine_results.json").read_text())
     econ = economy_block(P, res)
     market = {"criteria": res.get("criteria"), "call": res.get("call"), "analog": res.get("analog"), "combo": res.get("combo_now"),
               "track": {k: v for k, v in (res.get("track") or {}).items() if not k.startswith("  ")}}
     crit = res.get("criteria") or {}
+    S0, spx_m0 = build_signals(P)
+    drivers = []
+    m10 = spx_m0.dropna().tail(10).mean() if len(spx_m0.dropna()) >= 10 else None
+    spx_last = D["px:^GSPC"].dropna().iloc[-1] if "px:^GSPC" in D and D["px:^GSPC"].notna().any() else None
+    if m10 is not None and spx_last is not None:
+        drivers.append({"name": "Trend", "on": bool(spx_last < m10),
+                        "text": f"S&P 500 {spx_last:,.0f} vs its 10-month average {m10:,.0f}: "
+                                + ("below, so the trend is broken" if spx_last < m10 else "above, so the trend is intact")})
+    from engine import cape_updated
+    cape = cape_updated(P, spx_m0).dropna()
+    if len(cape):
+        drivers.append({"name": "Valuation", "on": bool(cape.iloc[-1] >= 30),
+                        "text": f"CAPE about {cape.iloc[-1]:.0f} (expensive from 30; long-run average about 17)"})
+    hist = {h["name"]: h["z"] for h in econ["history"]}
+    ctx = [p["name"].lower() + " " + p["label"].lower() for p in econ["pillars"]]
+    link = (f"The economy is context rather than the trigger: {', '.join(ctx[:3])}. "
+            + (f"Oil's 12-month rise is {hist.get('Oil (12m change)'):+.1f} sd from normal. " if hist.get("Oil (12m change)") is not None else "")
+            + "Higher rates and inflation weigh most on expensive markets, which is why valuation matters now.")
     summary = {"built": datetime.now(timezone.utc).isoformat(timespec="minutes"), "data_to": res.get("data_to"),
+               "prices_to": str(D["px:^GSPC"].dropna().index[-1].date()) if "px:^GSPC" in D and D["px:^GSPC"].notna().any() else None,
                "strip": strip_block(D, P), "economy": econ, "market": market}
+    market["drivers"] = drivers
+    market["economy_link"] = link
 
     universe = load_universe(store) if not skip_network else [
         {"s": s, "n": n, "k": k, "sector": None, "sub": None} for s, (n, k) in BASE_ASSETS.items()]
