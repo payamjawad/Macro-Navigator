@@ -1,0 +1,87 @@
+name: Publish
+
+on:
+  schedule:
+    - cron: "30 22 * * 1-5"      # weekdays after the US close (22:30 UTC)
+  workflow_dispatch: {}            # "Run workflow" button, and the app's Refresh button
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      PROJECT: macro-navigator
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Restore data store (keeps history between runs)
+        uses: actions/cache/restore@v4
+        with:
+          path: data/store
+          key: store-${{ github.run_id }}
+          restore-keys: store-
+
+      - name: 1 · Fetch data
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: python scripts/fetch_all.py --out data/store
+
+      - name: 2 · Evidence and engine
+        run: |
+          python scripts/evidence_check.py --store data/store
+          python scripts/engine.py --store data/store
+
+      - name: 3 · Build the app
+        env:
+          SEC_CONTACT: ${{ github.actor }}@users.noreply.github.com
+        run: python scripts/build_site.py --store data/store --out deploy
+
+      - name: Save data store
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/store
+          key: store-${{ github.run_id }}
+
+      - name: 4 · Deploy to Cloudflare Pages
+        working-directory: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            for path in accounts memberships; do
+              CLOUDFLARE_ACCOUNT_ID=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/$path" \
+                | python3 -c "import sys,json; r=json.load(sys.stdin).get('result') or []; print((r[0].get('account') or r[0]).get('id','') if r else '')" 2>/dev/null) || true
+              [ -n "$CLOUDFLARE_ACCOUNT_ID" ] && break
+            done
+            [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "::error::Could not find your Cloudflare account from the token. Check CLOUDFLARE_API_TOKEN."; exit 1; }
+            echo "Cloudflare account ID (found from the token): $CLOUDFLARE_ACCOUNT_ID"
+            export CLOUDFLARE_ACCOUNT_ID
+          fi
+          W="npx --yes wrangler@4"
+          $W pages project create "$PROJECT" --production-branch=main >/dev/null 2>&1 || true
+          if [ -n "$GEMINI_API_KEY" ]; then printf '%s' "$GEMINI_API_KEY" | $W pages secret put GEMINI_API_KEY --project-name="$PROJECT"; fi
+          if [ -n "$REFRESH_TOKEN" ]; then
+            printf '%s' "$REFRESH_TOKEN" | $W pages secret put GITHUB_TOKEN --project-name="$PROJECT"
+            printf '%s' "$REPO" | $W pages secret put GITHUB_REPO --project-name="$PROJECT"
+          fi
+          $W pages deploy public --project-name="$PROJECT" --branch=main --commit-dirty=true
