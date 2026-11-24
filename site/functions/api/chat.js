@@ -1,5 +1,7 @@
 // POST /api/chat - Ask Navigator. Gemini writes the words; every number must come from the published data.
-const MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"];
+// Lite models only, and never gemini-3.1-flash-lite (kept free for the owner's other project). Google counts free
+// limits per project and per model, so these do not touch that allowance. Override with a GEMINI_MODELS variable.
+const DEFAULT_MODELS = ["gemini-3.5-flash-lite", "gemini-2.5-flash-lite"];
 const STOP = new Set(["A", "I", "AN", "AND", "OR", "THE", "US", "USA", "UK", "EU", "AI", "CPI", "PCE", "GDP", "FED", "VIX", "ETF", "IPO",
   "CEO", "SP", "S", "P", "SPX", "YOY", "EPS", "PE", "OK", "IS", "IT", "IN", "ON", "AT", "TO", "OF", "BE", "DO", "MY", "ME", "WE", "NO",
   "SO", "IF", "AM", "PM", "Q1", "Q2", "Q3", "Q4", "HY", "BP", "NOW", "YES", "BUY", "SELL", "HOLD", "WHAT", "HOW", "WHY", "RISK"]);
@@ -104,31 +106,30 @@ DATA:
 ${JSON.stringify(ctx)}`;
 }
 
-async function gemini(key, system, messages) {
+async function gemini(key, system, messages, models = DEFAULT_MODELS) {
   const contents = messages.filter(m => m && m.text).slice(-10)
     .map(m => ({role: m.role === "assistant" ? "model" : "user", parts: [{text: String(m.text).slice(0, 2000)}]}));
-  let lastErr = "";
-  for (const model of MODELS) {
-    for (const noThinking of [true, false]) {
-      const gen = {temperature: 0.2, maxOutputTokens: 800};
-      if (noThinking) gen.thinkingConfig = {thinkingBudget: 0};
+  let lastErr = "", quotaHits = 0;
+  for (const model of models) {
+    // newer models reject or ignore temperature, so none is sent; light thinking keeps answers quick
+    for (const config of [{maxOutputTokens: 2048, thinkingConfig: {thinkingLevel: "low"}}, {maxOutputTokens: 2048}]) {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: "POST", headers: {"Content-Type": "application/json", "x-goog-api-key": key},
-        body: JSON.stringify({systemInstruction: {parts: [{text: system}]}, contents, generationConfig: gen})});
+        body: JSON.stringify({systemInstruction: {parts: [{text: system}]}, contents, generationConfig: config})});
       if (r.ok) {
         const d = await r.json();
-        const text = (d.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("").trim();
+        const text = (d.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || "").join("").trim();
         if (text) return {text, model};
         lastErr = "empty answer";
         break;
       }
-      const body = await r.text();
-      lastErr = `${r.status}`;
-      if (r.status === 429) throw new Error("Gemini's free quota is used up for now");
-      if (r.status === 400 && noThinking && /thinking/i.test(body)) continue;   // model without thinking control
-      break;                                                                    // try the next model
+      lastErr = String(r.status);
+      if (r.status === 400 && config.thinkingConfig) continue;   // model without this setting: retry plainly
+      if (r.status === 429) quotaHits++;
+      break;                                                      // 404, 429 or other: try the next model
     }
   }
+  if (quotaHits) throw new Error("Gemini's free allowance for these models is used up for now; daily limits reset at midnight Pacific time");
   throw new Error(`Gemini unavailable (${lastErr})`);
 }
 
@@ -164,7 +165,8 @@ export async function onRequestPost({request, env}) {
     return json({text, looked, sources, check: numberCheck(text, ctx), model: "Rule-based answer (add the GEMINI_API_KEY secret for AI answers)"});
   }
   try {
-    const {text, model} = await gemini(env.GEMINI_API_KEY, systemPrompt(ctx), messages);
+    const models = env.GEMINI_MODELS ? String(env.GEMINI_MODELS).split(",").map(m => m.trim()).filter(Boolean) : DEFAULT_MODELS;
+    const {text, model} = await gemini(env.GEMINI_API_KEY, systemPrompt(ctx), messages, models);
     return json({text, looked, sources, check: numberCheck(text, ctx), model: `Gemini (${model})`});
   } catch (e) {
     const text = fallback(summary, assets);

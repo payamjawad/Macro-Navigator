@@ -285,10 +285,14 @@ def fetch_fred_series(sess, limiter, sid, key, out_dir, full):
         if not full:
             window = 30 if freq in ("D", "W") else 400   # re-pull recent history to pick up revisions
             start = (old_s.index.max() - pd.Timedelta(days=window)).strftime("%Y-%m-%d")
+    via = ""
     if key:
-        obs = _fred_api(sess, limiter, sid, key, start)
-        new = pd.Series(pd.to_numeric([o["value"] for o in obs], errors="coerce"),
-                        index=pd.to_datetime([o["date"] for o in obs]), name=sid)
+        try:
+            obs = _fred_api(sess, limiter, sid, key, start)
+            new = pd.Series(pd.to_numeric([o["value"] for o in obs], errors="coerce"),
+                            index=pd.to_datetime([o["date"] for o in obs]), name=sid)
+        except Exception as err:            # rejected key, blocked or throttled: try the public download instead
+            new, via = _fred_csv(sess, sid, start), f" via public CSV (API: {str(err)[:60]})"
     else:
         new = _fred_csv(sess, sid, start)
     new = new.dropna()
@@ -301,7 +305,7 @@ def fetch_fred_series(sess, limiter, sid, key, out_dir, full):
     merged.index.name = "date"
     save(merged.rename(sid), path)
     added = len(merged) - (0 if old_s is None else len(old_s))
-    return sid, merged, f"ok (+{max(added, 0)} rows)" if old_s is not None else "ok", time.time() - t0
+    return sid, merged, (f"ok (+{max(added, 0)} rows)" if old_s is not None else "ok") + via, time.time() - t0
 
 
 def fetch_vintage(sess, limiter, sid, key, out_dir):
@@ -362,6 +366,17 @@ def fetch_yahoo(tickers, out_dir, full, name="yahoo_prices", threads=True):
         for t in refetch:
             if t in extra.columns:
                 merged = merged.drop(columns=[t], errors="ignore").join(extra[[t]], how="outer")
+    missing = [t for t in tickers if t not in merged.columns or merged[t].dropna().empty]
+    for t in missing[:60]:
+        for wait in (2, 6):
+            time.sleep(wait)
+            try:
+                one = _closes(yf.download(t, period="max", auto_adjust=True, progress=False, threads=False), [t])
+            except Exception:
+                one = pd.DataFrame()
+            if t in one.columns and one[t].notna().any():
+                merged = merged.drop(columns=[t], errors="ignore").join(one[[t]], how="outer")
+                break
     merged = merged.sort_index()
     merged.index.name = "date"
     for t in tickers:
@@ -717,7 +732,7 @@ def main(argv=None) -> int:
     manual = out.parent / "manual"
     out.mkdir(parents=True, exist_ok=True)
     manual.mkdir(parents=True, exist_ok=True)
-    key = os.environ.get("FRED_API_KEY")
+    key = (os.environ.get("FRED_API_KEY") or "").strip().strip('"').strip("'") or None
     groups = [g for g in GROUPS if g in {x.strip() for x in args.only.split(",")}]
 
     if args.child:                              # worker process: download, write a catalog part, exit

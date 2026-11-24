@@ -78,6 +78,7 @@ h2{margin:6px 0 0;font-size:16px;font-weight:700}
     <span style="display:flex;align-items:center;gap:10px"><span class="dim" id="asof">Loading…</span>
       <button class="btn" id="refresh" type="button" aria-label="Refresh data"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg><span class="lbl">Refresh</span></button></span>
   </div>
+  <div class="note" id="health" hidden style="background:#3A2F0F;border-color:#7A5C14;color:#FCD34D"></div>
   <section class="strip" id="strip" aria-label="Markets"></section>
   <form class="search" id="searchForm" role="search">
     <label for="q" style="position:absolute;left:-9999px">Search economy, index or ticker</label>
@@ -130,6 +131,9 @@ function renderHeader() {
   $("#asof").textContent = "Data to " + new Date(s.data_to + "T00:00:00").toLocaleDateString(undefined, {day: "numeric", month: "short"});
   $("#strip").innerHTML = s.strip.map(c => `<div class="cell"><span class="dim" style="font-size:11px">${esc(c.label)}</span>
     <span class="v">${esc(c.value)}</span><span style="font-size:11px;color:${TONE[c.tone] || TONE.neutral}">${esc(c.note)}</span></div>`).join("");
+  const h = s.health || [];
+  if (h.length) { const el = $("#health"); el.hidden = false;
+    el.textContent = "The last run could not load: " + h.join("; ") + ". Readings that depend on them show n/a or may be out of date. Press Refresh to try again."; }
   $("#symbols").innerHTML = S.universe.map(u => `<option value="${esc(u.s)}">${esc(u.n || "")}</option>`).join("");
 }
 
@@ -326,6 +330,16 @@ async function draw() {
   }
   if (tab !== current) { window.scrollTo(0, 0); current = tab; }
 }
+const ALIAS = {TSMC: "TSM", TAIWAN: "TSM", GOOGLE: "GOOGL", ALPHABET: "GOOGL", FACEBOOK: "META", BERKSHIRE: "BRK-B", NOVO: "NVO"};
+function resolve(q) {
+  const up = q.toUpperCase().replace(/^\$/, "").trim().replace(/\./g, "-");
+  if (S.bySym[up]) return up;
+  if (ALIAS[up] && S.bySym[ALIAS[up]]) return ALIAS[up];
+  const l = q.toLowerCase().trim();
+  const byName = S.universe.filter(u => (u.n || "").toLowerCase().startsWith(l)).concat(
+    S.universe.filter(u => (u.n || "").toLowerCase().includes(l)));
+  return byName.length ? byName[0].s : (ALIAS[up] || up);
+}
 $("#searchForm").onsubmit = e => {
   e.preventDefault();
   const q = $("#q").value.trim(); if (!q) return;
@@ -334,7 +348,7 @@ $("#searchForm").onsubmit = e => {
   else if (/^(s&p|sp500|spx|s and p|\^gspc)/.test(l)) location.hash = "sp500";
   else if (/^(nasdaq|ndx|\^ndx)/.test(l)) location.hash = "nasdaq";
   else if (/^(ask|chat)/.test(l)) location.hash = "ask";
-  else location.hash = "stock/" + encodeURIComponent(q.toUpperCase().replace(/^\$/, ""));
+  else location.hash = "stock/" + encodeURIComponent(resolve(q));
   $("#q").value = ""; $("#q").blur();
 };
 $("#refresh").onclick = async () => {

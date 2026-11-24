@@ -48,7 +48,15 @@ BASE_ASSETS = {
     "XLE": ("Energy sector", "etf"), "XLI": ("Industrials sector", "etf"), "XLB": ("Materials sector", "etf"),
     "XLU": ("Utilities sector", "etf"), "XLRE": ("Real estate sector", "etf"), "XLC": ("Communication services sector", "etf"),
     "SMH": ("Semiconductors", "etf"), "GLD": ("Gold", "etf"), "TLT": ("Long Treasuries", "etf"),
+    "^FTSE": ("FTSE 100", "index"),
 }
+# Well-known stocks outside the S&P 500 and Nasdaq 100 (mostly US-listed foreign companies)
+EXTRA_STOCKS = {"TSM": ("Taiwan Semiconductor (TSMC)", "Information Technology", "Semiconductors"),
+                "ASML": ("ASML Holding", "Information Technology", "Semiconductor Materials & Equipment"),
+                "ARM": ("Arm Holdings", "Information Technology", "Semiconductors"),
+                "NVO": ("Novo Nordisk", "Health Care", "Pharmaceuticals"), "SAP": ("SAP", "Information Technology", "Application Software"),
+                "BABA": ("Alibaba", "Consumer Discretionary", "Broadline Retail"), "SONY": ("Sony", "Consumer Discretionary", "Consumer Electronics"),
+                "TM": ("Toyota", "Consumer Discretionary", "Automobile Manufacturers"), "SHOP": ("Shopify", "Information Technology", "Internet Services")}
 GICS_ETF = {"Information Technology": "XLK", "Financials": "XLF", "Health Care": "XLV", "Consumer Discretionary": "XLY",
             "Consumer Staples": "XLP", "Energy": "XLE", "Industrials": "XLI", "Materials": "XLB", "Utilities": "XLU",
             "Real Estate": "XLRE", "Communication Services": "XLC"}
@@ -235,6 +243,8 @@ def load_universe(store: Path) -> list[dict]:
                 members[sym] = {"s": sym, "n": sym, "k": "stock", "sector": None, "sub": None, "watch": True}
             elif sym in members:
                 members[sym]["watch"] = True
+    for s, (n, sec, sub) in EXTRA_STOCKS.items():
+        members.setdefault(s, {"s": s, "n": n, "k": "stock", "sector": sec, "sub": sub})
     for s, (n, k) in BASE_ASSETS.items():
         members[s] = {"s": s, "n": n, "k": k, "sector": None, "sub": None}
     return list(members.values())
@@ -457,6 +467,21 @@ def build(store: Path, out: Path, skip_network: bool = False) -> dict:
     spx = prices["^GSPC"] if "^GSPC" in prices else prices.get("SPY")
     fund, fund_note = ({}, "skipped") if skip_network else sec_fundamentals(store)
     summary["fundamentals_source"] = fund_note
+    health = []
+    labels = {c["label"] for c in summary["strip"]}
+    for need, what in (("S&P 500", "S&P 500 daily prices (Yahoo)"), ("US 10-year", "FRED daily rates"),
+                       ("HY spread", "credit spreads (FRED)")):
+        if need not in labels:
+            health.append(what)
+    if all(p["detail"] == "n/a" for p in econ["pillars"]):
+        health.append("FRED economic data (jobs, inflation, policy)")
+    if res.get("data_to") and pd.Timestamp(res["data_to"]) < pd.Timestamp.today() - pd.Timedelta(days=45):
+        health.append(f"recent S&P 500 history (latest month used: {res['data_to']})")
+    if not fund:
+        health.append(f"company fundamentals ({fund_note})")
+    summary["health"] = health
+    for h in health:
+        print(f"::warning::Missing in this run: {h}")
 
     S, spx_m = build_signals(P)
     on_def = [d["signal"] for d in crit.get("defensive", []) if d.get("now")]
