@@ -505,6 +505,22 @@ def criteria_html(res: dict) -> str:
     return "".join(out)
 
 
+def finite(o):
+    """Strict JSON: NaN and infinity become null (browsers reject NaN)."""
+    if isinstance(o, float):
+        return o if math.isfinite(o) else None
+    if isinstance(o, dict):
+        return {k: finite(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [finite(v) for v in o]
+    if hasattr(o, "item") and not isinstance(o, (str, bytes)):
+        try:
+            return finite(o.item())
+        except Exception:
+            return o
+    return o
+
+
 def write_report(res: dict, store: Path) -> Path:
     c = res["call"]
     a = res["analog"]
@@ -615,7 +631,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     store = Path(args.store)
     res = run(store)
-    (store / "engine_results.json").write_text(json.dumps(res, default=lambda o: None if isinstance(o, float) and not math.isfinite(o) else str(o), indent=1))
+    (store / "engine_results.json").write_text(json.dumps(finite(res), default=str, indent=1, allow_nan=False))
     path = write_report(res, store)
     c = res["call"]
     print(f"\nMacro Navigator (data to {res['data_to']})")

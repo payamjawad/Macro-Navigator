@@ -36,10 +36,11 @@ ROOT = HERE.parent if HERE.name == "scripts" else HERE
 sys.path.insert(0, str(HERE))
 import fetch_all as fa  # noqa: E402
 from evidence_check import build_signals, col, episodes, load_panel, worst_dip_12m  # noqa: E402
-from engine import latest, load_daily  # noqa: E402
+from engine import finite, latest, load_daily  # noqa: E402
 
 UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) macro-navigator-build/1.0"}
-SEC_UA = {"User-Agent": "MacroNavigator personal research " + os.environ.get("SEC_CONTACT", "macro-navigator@users.noreply.github.com")}
+SEC_UA = {"User-Agent": "Macro Navigator personal research tool " + (os.environ.get("SEC_CONTACT") or "macro-navigator@users.noreply.github.com").strip(),
+          "Accept-Encoding": "gzip, deflate"}
 BASE_ASSETS = {
     "^GSPC": ("S&P 500", "index"), "^NDX": ("Nasdaq 100", "index"), "^RUT": ("Russell 2000", "index"), "^DJI": ("Dow Jones", "index"),
     "SPY": ("SPDR S&P 500 ETF", "etf"), "QQQ": ("Invesco QQQ (Nasdaq 100)", "etf"), "IWM": ("iShares Russell 2000", "etf"),
@@ -268,7 +269,9 @@ def sec_fundamentals(store: Path) -> tuple[dict, str]:
     try:
         tick = sec_get("https://www.sec.gov/files/company_tickers.json", sec / "company_tickers.json", 168)
     except Exception as err:
-        return {}, f"SEC unavailable ({err.__class__.__name__})"
+        code = getattr(getattr(err, "response", None), "status_code", "")
+        hint = " - add your email as the SEC_CONTACT secret" if code in (401, 403) else ""
+        return {}, f"SEC unavailable ({err.__class__.__name__} {code}{hint})".replace(" )", ")")
     cik_to_t = {int(v["cik_str"]): str(v["ticker"]).upper().replace(".", "-") for v in tick.values()}
 
     def frame(tag, y, q):
@@ -497,10 +500,10 @@ def build(store: Path, out: Path, skip_network: bool = False) -> dict:
         v = ticker_view(item, prices, spx, fund, econ, crit, flag, spx_m)
         if v is None:
             continue
-        (tdir / f"{file_name(item['s'])}.json").write_text(json.dumps(v, separators=(",", ":")))
+        (tdir / f"{file_name(item['s'])}.json").write_text(json.dumps(finite(v), separators=(",", ":"), default=str, allow_nan=False))
         listed.append({"s": item["s"], "n": item.get("n"), "k": item["k"], "f": file_name(item["s"])})
         n += 1
-    (pub / "data" / "summary.json").write_text(json.dumps(summary, separators=(",", ":"), default=str))
+    (pub / "data" / "summary.json").write_text(json.dumps(finite(summary), separators=(",", ":"), default=str, allow_nan=False))
     (pub / "data" / "universe.json").write_text(json.dumps(listed, separators=(",", ":")))
     site = ROOT / "site"
     for f in site.iterdir():

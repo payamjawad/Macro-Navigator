@@ -112,7 +112,8 @@ try { S.chat = JSON.parse(localStorage.getItem("mn_chat") || "[]"); } catch (e) 
 async function getJSON(path) {
   const r = await fetch(path + (path.includes("?") ? "&" : "?") + "v=" + Date.now().toString().slice(0, -5));
   if (!r.ok) throw new Error(path + " " + r.status);
-  return r.json();
+  const text = await r.text();
+  return JSON.parse(text.replace(/\bNaN\b|-?\bInfinity\b/g, "null"));
 }
 function toast(msg) {
   const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t);
@@ -364,7 +365,7 @@ window.addEventListener("hashchange", draw);
     S.universe.forEach(u => S.bySym[u.s.toUpperCase()] = u);
     renderHeader(); draw();
   } catch (e) {
-    $("#view").innerHTML = `<div class="note">The data files are missing. The first GitHub run creates them (Actions → Publish → Run workflow).</div>`;
+    $("#view").innerHTML = `<div class="note">Could not load the data (${esc(e.message)}). If this is a new setup, run Actions → Publish → Run workflow; otherwise press Refresh.</div>`;
   }
 })();
 </script>
