@@ -1,0 +1,2 @@
+# Extra tickers to include on top of the S&P 500 and Nasdaq 100 (one per line).
+# The app's "Add to watchlist" button appends here. Yahoo symbols work, e.g. ASML, TSM, BRK-B, VOD.L

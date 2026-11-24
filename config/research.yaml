@@ -1,0 +1,42 @@
+# Research watch: new papers are pulled from these feeds, scored by keyword, and mapped to
+# the model module they could change. Feeds that fail are skipped and reported.
+lookback_days: 60
+max_items: 30
+min_score: 3
+
+feeds:
+  - {name: "NBER working papers", type: rss, url: "https://www.nber.org/rss/new.xml"}
+  - {name: "Federal Reserve Board working papers", type: rss, url: "https://www.federalreserve.gov/feeds/working_papers.xml"}
+  - {name: "NY Fed Liberty Street Economics", type: rss, url: "https://libertystreeteconomics.newyorkfed.org/feed/"}
+  - name: "arXiv quantitative finance"
+    type: arxiv
+    url: "http://export.arxiv.org/api/query"
+    query: "(cat:q-fin.GN OR cat:q-fin.PM OR cat:q-fin.ST OR cat:econ.GN OR cat:q-fin.PR) AND (abs:recession OR abs:\"yield curve\" OR abs:\"credit spread\" OR abs:\"equity premium\" OR abs:regime OR abs:inflation OR abs:\"monetary policy\")"
+    max_results: 100
+
+# Module -> keywords. Title hits count double. Weights let core ideas outrank side topics.
+modules:
+  recession_risk:
+    weight: 3
+    keywords: ["recession", "yield curve", "term spread", "business cycle", "sahm", "leading indicator", "nowcast"]
+  credit_conditions:
+    weight: 3
+    keywords: ["credit spread", "excess bond premium", "financial conditions", "high yield", "default", "credit market", "bank run", "liquidity"]
+  inflation_policy:
+    weight: 2
+    keywords: ["inflation", "monetary policy", "federal reserve", "interest rate", "fomc", "taylor rule", "inflation expectations", "oil price", "energy price", "supply chain", "tariff"]
+  equity_return_prediction:
+    weight: 3
+    keywords: ["equity premium", "return predictability", "stock return", "expected return", "valuation", "cape", "price-earnings", "market timing"]
+  regimes_and_volatility:
+    weight: 3
+    keywords: ["regime", "markov switching", "volatility", "vix", "crash", "tail risk", "drawdown"]
+  momentum_and_rotation:
+    weight: 2
+    keywords: ["momentum", "trend following", "sector rotation", "industry", "time-series momentum", "technical indicator"]
+  global_markets:
+    weight: 1
+    keywords: ["emerging market", "exchange rate", "dollar", "international", "capital flows", "global"]
+  forecasting_method:
+    weight: 2
+    keywords: ["out-of-sample", "overfitting", "forecast combination", "machine learning", "backtest"]

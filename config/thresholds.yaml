@@ -1,0 +1,68 @@
+# Every number the regime model uses. Units: percent unless the key ends in _bp (basis points).
+# These come from Sections 2-3 of the Macro Regime Playbook. Change them here, never in code.
+
+inflation:
+  core_pce_hot: 3.0           # core PCE YoY at or above = INFL_HOT
+  core_cpi_3m_hot: 4.0        # core CPI 3-month annualised at or above = INFL_HOT
+  brent_yoy_hot: 50           # Brent YoY % at or above ...
+  core_cpi_3m_with_oil: 3.0   # ... together with core CPI 3m at or above this = INFL_HOT
+  core_pce_cool: 2.5
+  core_cpi_3m_cool: 2.75
+  brent_yoy_cool: 25
+
+policy:
+  two_y_minus_ff_hike: 0.50   # 2Y minus fed funds upper bound: hikes priced
+  two_y_minus_ff_pivot: -1.00 # cuts strongly priced
+  real_ff_restrictive: 1.5    # fed funds minus core PCE YoY
+  ff_12m_hawkish: 1.00        # fed funds up this much in 12 months
+
+growth:
+  # ISM and the Conference Board LEI have no free feed. Substitutes on FRED:
+  # Philadelphia Fed activity index (for ISM) and building permits YoY (for LEI).
+  sahm_warn: 0.30
+  sahm_recession: 0.50
+  claims_warn: 0.15           # 4-week claims vs 52-week low (0.15 = +15%)
+  claims_recession: 0.20
+  philly_weak: -15
+  philly_recession: -20
+  permits_yoy_weak: -20
+
+credit:
+  hy_stress_bp: 500
+  hy_rise_stress_bp: 150      # above the 126-day minimum
+  hy_crisis_bp: 700
+  hy_heal_from_max_bp: 100
+  hy_exit_bp: 450
+  hy_exit_from_max_bp: 150
+  nfci_stress: 0.0
+  cp_ff_crisis_bp: 100
+
+volatility:
+  vix_crisis: 40
+  vix_ratio_crisis: 1.10      # VIX / VIX3M for 3 sessions
+  vix_washout: 35
+  vix_release: 0.75           # 5-day avg at or below this share of the 60-day max
+  vix_exit: 25
+  vix_calm: 20
+
+amber:
+  hy_rise_bp: 100
+  vix: 25
+  vix_days: 5
+  drawdown_pct: 10
+  kre_rel_pct: -10
+  nfci: -0.2
+  need: 2                     # signs needed out of 6
+
+persistence:
+  r3_weeks: 2
+  r2_month_ends: 2
+  r1_month_ends: 3
+  r3_exit_weeks: 4
+  amber_clear_weeks: 4
+  r4_max_months: 12
+
+# Fill these by hand when a free source is missing or broken. null = not used.
+manual_overrides:
+  cape: null          # Shiller CAPE, e.g. 38.5; used only if the automatic download fails
+  country_cape: {}    # optional country CAPEs for the long-term view, e.g. {EWU: 15.0, EWJ: 22.0}

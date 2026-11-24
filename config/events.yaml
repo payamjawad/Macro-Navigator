@@ -1,0 +1,7 @@
+# Policy events the data cannot detect on their own. They count toward PIVOT for 60 days.
+# Add a line whenever a central bank launches a facility, starts QE, ends QT, or drops its
+# tightening bias. Format: YYYY-MM-DD: "short label"
+pivot_events:
+  "2020-03-23": "Fed unlimited QE and corporate credit facilities"
+  "2023-03-12": "Bank Term Funding Program after SVB"
+  "2025-12-01": "Fed ends quantitative tightening"

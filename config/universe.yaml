@@ -1,0 +1,83 @@
+# Everything the dashboard scores. Add or remove rows freely; tickers are Yahoo Finance symbols.
+# "kind" decides how the medium-term recession overlay treats it: cyclical, defensive, or neutral.
+
+benchmark: SPY          # US benchmark for relative strength
+global_benchmark: ACWI  # benchmark for country relative strength
+
+us_indices:
+  - {ticker: SPY,  name: "S&P 500",                 kind: neutral,   long_term: true}
+  - {ticker: QQQ,  name: "Nasdaq 100",              kind: cyclical,  long_term: true}
+  - {ticker: DIA,  name: "Dow Jones Industrials",   kind: neutral,   long_term: true}
+  - {ticker: RSP,  name: "S&P 500 equal weight",    kind: neutral,   long_term: true}
+  - {ticker: MDY,  name: "S&P MidCap 400",          kind: cyclical,  long_term: true}
+  - {ticker: IWM,  name: "Russell 2000 small caps", kind: cyclical,  long_term: true}
+
+us_sectors:
+  - {ticker: XLK,  name: "Technology",              kind: cyclical}
+  - {ticker: XLC,  name: "Communication services",  kind: neutral}
+  - {ticker: XLY,  name: "Consumer discretionary",  kind: cyclical}
+  - {ticker: XLF,  name: "Financials",              kind: cyclical}
+  - {ticker: XLI,  name: "Industrials",             kind: cyclical}
+  - {ticker: XLB,  name: "Materials",               kind: cyclical}
+  - {ticker: XLE,  name: "Energy",                  kind: cyclical}
+  - {ticker: XLV,  name: "Health care",             kind: defensive}
+  - {ticker: XLP,  name: "Consumer staples",        kind: defensive}
+  - {ticker: XLU,  name: "Utilities",               kind: defensive}
+  - {ticker: XLRE, name: "Real estate",             kind: neutral}
+
+us_industries:
+  - {ticker: SMH,  name: "Semiconductors",          kind: cyclical}
+  - {ticker: IGV,  name: "Software",                kind: cyclical}
+  - {ticker: KRE,  name: "Regional banks",          kind: cyclical}
+  - {ticker: XHB,  name: "Homebuilders",            kind: cyclical}
+  - {ticker: XBI,  name: "Biotech",                 kind: neutral}
+  - {ticker: ITA,  name: "Aerospace & defense",     kind: neutral}
+
+global_markets:
+  - {ticker: ACWI, name: "All-world",               kind: neutral,  region: World}
+  - {ticker: EFA,  name: "Developed ex-US",         kind: neutral,  region: Developed}
+  - {ticker: EEM,  name: "Emerging markets",        kind: cyclical, region: Emerging, em: true}
+  - {ticker: VGK,  name: "Europe",                  kind: neutral,  region: Europe}
+  - {ticker: EWU,  name: "United Kingdom",          kind: defensive, region: Europe}
+  - {ticker: EWG,  name: "Germany",                 kind: cyclical, region: Europe}
+  - {ticker: EWJ,  name: "Japan",                   kind: neutral,  region: Asia}
+  - {ticker: MCHI, name: "China",                   kind: cyclical, region: Asia, em: true}
+  - {ticker: INDA, name: "India",                   kind: cyclical, region: Asia, em: true}
+  - {ticker: EWT,  name: "Taiwan",                  kind: cyclical, region: Asia, em: true}
+  - {ticker: EWY,  name: "South Korea",             kind: cyclical, region: Asia, em: true}
+  - {ticker: EWZ,  name: "Brazil",                  kind: cyclical, region: Americas, em: true}
+  - {ticker: EWC,  name: "Canada",                  kind: cyclical, region: Americas}
+  - {ticker: EWA,  name: "Australia",               kind: cyclical, region: Asia}
+
+# Local-currency index levels, shown for reference (not scored).
+global_indices:
+  - {ticker: "^FTSE",     name: "FTSE 100"}
+  - {ticker: "^GDAXI",    name: "DAX"}
+  - {ticker: "^STOXX50E", name: "Euro Stoxx 50"}
+  - {ticker: "^N225",     name: "Nikkei 225"}
+  - {ticker: "^HSI",      name: "Hang Seng"}
+
+cross_asset:
+  - {ticker: TLT, name: "Long Treasuries"}
+  - {ticker: IEF, name: "7-10y Treasuries"}
+  - {ticker: SHY, name: "1-3y Treasuries"}
+  - {ticker: TIP, name: "TIPS"}
+  - {ticker: HYG, name: "High yield bonds"}
+  - {ticker: LQD, name: "IG corporate bonds"}
+  - {ticker: GLD, name: "Gold"}
+  - {ticker: DBC, name: "Commodities"}
+  - {ticker: UUP, name: "US dollar"}
+
+market_internals: ["^GSPC", "^VIX", "^VIX3M", "^MOVE"]
+
+# Medium-term regime priors (+1 favoured, -1 disfavoured), taken from the booklet's Section 3.
+# Evidence for business-cycle sector rotation is mixed (see docs/RESEARCH.md), so these carry
+# only part of the medium-term score.
+regime_tilts:
+  R1: {XLK: 1, XLC: 1, XLY: 1, SMH: 1, IGV: 1, QQQ: 1, XLU: -1, XLP: -1, XLE: -1, EEM: 1, EWT: 1, EWY: 1}
+  R2: {XLE: 1, XLB: 1, XLF: 1, XLI: 1, ITA: 1, EWU: 1, EWC: 1, EWA: 1, EWZ: 1,
+       XLK: -1, IGV: -1, QQQ: -1, XLRE: -1, XLU: -1, XHB: -1}
+  R3: {XLP: 1, XLV: 1, XLU: 1, EWU: 1, EWJ: 1,
+       XLY: -1, XLF: -1, KRE: -1, IWM: -1, MDY: -1, SMH: -1, XHB: -1, XLI: -1, XLB: -1, EEM: -1, EWZ: -1}
+  R4: {IWM: 1, MDY: 1, XLY: 1, XLF: 1, KRE: 1, SMH: 1, XLI: 1, XLB: 1, XHB: 1, EEM: 1, EWY: 1, EWT: 1,
+       XLP: -1, XLU: -1, XLV: -1}

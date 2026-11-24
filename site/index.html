@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Macro Navigator</title>
+<meta name="theme-color" content="#0B1424">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Navigator">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0B1424;--card:#121D33;--line:#23324F;--line2:#2C3D5E;--ink:#E7EEF8;--ink2:#C9D5E6;--mute:#8798B3;--blue:#2563EB;--blue2:#3B82F6;
+--good:#34D399;--warn:#FBBF24;--bad:#F87171;--panel:#16294D;color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Public Sans',system-ui,-apple-system,sans-serif;font-variant-numeric:tabular-nums;-webkit-text-size-adjust:100%}
+main{max-width:860px;margin:0 auto;padding:calc(14px + env(safe-area-inset-top,0px)) 16px calc(28px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px}
+a{color:#93C5FD}
+h2{margin:6px 0 0;font-size:16px;font-weight:700}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:17px;letter-spacing:-.01em}
+.dim{color:var(--mute);font-size:12px}
+.btn{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink2);font-weight:600;font-size:13px;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn:focus-visible,.tab:focus-visible,input:focus-visible{outline:2px solid #93C5FD;outline-offset:2px}
+.strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+@media(min-width:720px){.strip{grid-template-columns:repeat(6,minmax(0,1fr))}}
+.cell{background:var(--card);padding:8px 10px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.cell .v{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.search{display:flex;gap:8px}
+.search input{flex:1;min-width:0;height:44px;border:1px solid var(--line2);border-radius:10px;padding:0 12px;font-size:15px;font-family:inherit;color:var(--ink);background:var(--card)}
+.tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.tab{min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:var(--card);border:1px solid var(--line);color:var(--ink2);font-size:13px;font-weight:600;text-decoration:none}
+.tab[aria-current=page]{background:var(--blue);border-color:var(--blue);color:#fff}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.stance{font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.p{margin:0;font-size:14px;line-height:1.5;color:var(--ink2)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+@media(min-width:720px){.wide2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}}
+.mini{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.row{display:flex;justify-content:space-between;gap:12px;font-size:13px;align-items:baseline}
+.row span:first-child{color:var(--mute)}
+.pill{font-size:11px;font-weight:600;border-radius:6px;padding:2px 7px;align-self:flex-start;white-space:nowrap}
+.meter{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.meter div{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--mute)}
+.meter i{height:6px;border-radius:3px;display:block}
+.bar{height:8px;border-radius:4px;background:#1E2B45}.bar i{display:block;height:8px;border-radius:4px;background:var(--blue2)}
+.layerbar{display:flex;gap:4px}.layerbar i{flex:1;height:6px;border-radius:3px}
+.reading{background:var(--panel);border:1px solid #2C4A80;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:6px}
+.reading p{margin:0;font-size:15px;line-height:1.5}
+.note{background:var(--panel);border:1px solid #2C4A80;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.45;color:#BFDBFE}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{min-height:40px;padding:0 12px;border-radius:20px;border:1px solid var(--line2);background:var(--card);color:var(--ink2);font-size:13px;font-family:inherit;cursor:pointer}
+.msgs{display:flex;flex-direction:column;gap:12px}
+.me{align-self:flex-end;max-width:85%;background:var(--blue);color:#fff;border-radius:16px 16px 4px 16px;padding:10px 14px;font-size:14px;line-height:1.45;white-space:pre-wrap}
+.ai{align-self:flex-start;max-width:94%;background:var(--card);border:1px solid var(--line);border-radius:16px 16px 16px 4px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.ai p{margin:0;font-size:14px;line-height:1.55;color:var(--ink2)}
+.looked{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mute)}
+.compose{display:flex;gap:8px;position:sticky;bottom:calc(8px + env(safe-area-inset-bottom,0px));background:var(--bg);padding-top:8px}
+.compose input{flex:1;min-width:0;height:48px;border:1px solid var(--line2);border-radius:12px;padding:0 12px;font-size:15px;font-family:inherit;color:var(--ink);background:var(--card)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:#1E2B45;border:1px solid var(--line2);color:var(--ink);padding:10px 14px;border-radius:10px;font-size:13px;max-width:92vw;z-index:10}
+@media(max-width:430px){.lbl{display:none}#refresh{width:44px;justify-content:center;padding:0}}
+#asof{white-space:nowrap}
+.foot{font-size:11px;line-height:1.45;color:var(--mute);margin:0}
+@media (prefers-reduced-motion:no-preference){.ai.wait p{animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{opacity:.45}}}
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <span class="brand"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M7 15l3-3 3 2 4-5"/></svg>Macro Navigator</span>
+    <span style="display:flex;align-items:center;gap:10px"><span class="dim" id="asof">Loading…</span>
+      <button class="btn" id="refresh" type="button" aria-label="Refresh data"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg><span class="lbl">Refresh</span></button></span>
+  </div>
+  <section class="strip" id="strip" aria-label="Markets"></section>
+  <form class="search" id="searchForm" role="search">
+    <label for="q" style="position:absolute;left:-9999px">Search economy, index or ticker</label>
+    <input id="q" list="symbols" placeholder="Ticker, index or economy" autocomplete="off" autocapitalize="characters" enterkeyhint="search">
+    <datalist id="symbols"></datalist>
+    <button class="btn primary" type="submit">Go</button>
+  </form>
+  <nav class="tabs" aria-label="Views">
+    <a class="tab" href="#economy" data-tab="economy">Economy</a>
+    <a class="tab" href="#sp500" data-tab="sp500">S&amp;P 500</a>
+    <a class="tab" href="#nasdaq" data-tab="nasdaq">Nasdaq</a>
+    <a class="tab" href="#stock" data-tab="stock">Stock</a>
+    <a class="tab" href="#ask" data-tab="ask">Ask</a>
+  </nav>
+  <div id="view" aria-live="polite"></div>
+  <p class="foot">Research framework, not investment advice. Data: FRED, Yahoo Finance, SEC filings, Shiller, Ken French, ICE BofA via FRED (private use).</p>
+</main>
+<script>
+"use strict";
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const minus = s => String(s).replace(/^-/, "−");
+const pct = (x, d = 0, sign = true) => x == null || !isFinite(x) ? "n/a" : minus((sign && x > 0 ? "+" : "") + (x * 100).toFixed(d) + "%");
+const TONE = {good: "#34D399", warn: "#FBBF24", bad: "#F87171", neutral: "#A3B3CA"};
+const PILL = {good: ["#6EE7B7", "#0F3A2E"], warn: ["#FCD34D", "#3A2F0F"], bad: ["#FCA5A5", "#3F1C22"], neutral: ["#B6C3D6", "#1E2B45"], blue: ["#93C5FD", "#16294D"]};
+const pill = (text, tone = "neutral") => `<span class="pill" style="color:${PILL[tone][0]};background:${PILL[tone][1]}">${esc(text)}</span>`;
+const TAGTONE = {"Proven": "good", "Research-backed": "good", "Well documented": "blue", "No model edge": "neutral", "Not modelled yet": "warn", "Model": "blue", "No signal": "neutral"};
+const S = {summary: null, universe: [], bySym: {}, chat: []};
+try { S.chat = JSON.parse(localStorage.getItem("mn_chat") || "[]"); } catch (e) { S.chat = []; }
+
+async function getJSON(path) {
+  const r = await fetch(path + (path.includes("?") ? "&" : "?") + "v=" + Date.now().toString().slice(0, -5));
+  if (!r.ok) throw new Error(path + " " + r.status);
+  return r.json();
+}
+function toast(msg) {
+  const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t);
+  setTimeout(() => t.remove(), 5000);
+}
+function horizonCards(list) {
+  return `<section class="grid3" aria-label="Direction by horizon">${list.map(h => `<div class="mini">
+    <span class="dim" style="font-size:11px">${esc(h.h)}</span>
+    <span style="font-size:14px;font-weight:600;line-height:1.25;color:${TONE[h.tone] || TONE.neutral}">${esc(h.text)}</span>
+    ${pill(h.tag, TAGTONE[h.tag] || "neutral")}</div>`).join("")}</section>`;
+}
+
+// ------------------------------------------------------------------ header
+function renderHeader() {
+  const s = S.summary;
+  $("#asof").textContent = "Data to " + new Date(s.data_to + "T00:00:00").toLocaleDateString(undefined, {day: "numeric", month: "short"});
+  $("#strip").innerHTML = s.strip.map(c => `<div class="cell"><span class="dim" style="font-size:11px">${esc(c.label)}</span>
+    <span class="v">${esc(c.value)}</span><span style="font-size:11px;color:${TONE[c.tone] || TONE.neutral}">${esc(c.note)}</span></div>`).join("");
+  $("#symbols").innerHTML = S.universe.map(u => `<option value="${esc(u.s)}">${esc(u.n || "")}</option>`).join("");
+}
+
+// ------------------------------------------------------------------ economy
+function renderEconomy() {
+  const e = S.summary.economy;
+  return `<section class="card"><span class="dim">Economic regime</span>
+      <span class="stance" style="font-size:26px;color:${TONE[e.tone]}">${esc(e.regime)}</span><p class="p">${esc(e.text)}</p></section>
+    <section class="grid2" aria-label="Four pillars">${e.pillars.map(p => `<div class="mini"><span class="dim">${esc(p.name)}</span>
+      <span style="font-size:17px;font-weight:700;color:${TONE[p.tone]}">${esc(p.label)}</span>
+      <span style="font-size:13px;line-height:1.4;color:var(--ink2)">${esc(p.detail)}</span></div>`).join("")}</section>
+    <div class="wide2">
+    <section class="card"><span class="dim">Where today sits versus history</span>
+      ${e.history.map(h => `<div class="row"><span>${esc(h.name)}</span><b style="color:${Math.abs(h.z || 0) >= 1.5 ? TONE.bad : "var(--ink)"}">${h.z == null ? "n/a" : minus((h.z > 0 ? "+" : "") + h.z.toFixed(1)) + " sd"}</b></div>`).join("")}
+      <div class="row"><span>Recession odds, 12 months</span><b>${e.recession_prob == null ? "n/a" : "about " + Math.round(e.recession_prob * 100) + "%"}</b></div>
+      <p class="dim" style="margin:0;line-height:1.45">Recession odds: NY Fed yield-curve model. Useful for the economy; unproven for timing stocks.</p></section>
+    <section style="display:flex;flex-direction:column;gap:8px"><h2>What would change this read</h2>
+      ${e.watch.map(w => `<div class="mini" style="flex-direction:row;justify-content:space-between;align-items:center">
+        <div style="display:flex;flex-direction:column;gap:2px"><b style="font-size:14px">${esc(w.name)}</b><span class="dim">${esc(w.rule)}</span></div>
+        <b style="font-size:13px;color:var(--ink2);white-space:nowrap">Now ${esc(w.now)}</b></div>`).join("")}</section>
+    </div>
+    <a class="btn primary" href="#sp500" style="justify-content:center;text-decoration:none">What this means for the S&amp;P 500</a>`;
+}
+
+// ------------------------------------------------------------------ S&P 500
+function renderMarket() {
+  const m = S.summary.market, c = m.criteria || {}, call = m.call || {}, a = m.analog || {}, combo = m.combo;
+  const levelTone = {"High risk": "bad", "Elevated risk": "warn", "Normal": "good", "Recovery window": "good"}[c.level] || "neutral";
+  const idx = {"Normal": 0, "Elevated risk": 1, "High risk": 2}[c.level];
+  const meterCol = ["#34D399", "#FBBF24", "#F87171"], meterOff = ["#1E3A33", "#3A3115", "#3F1C22"];
+  const meter = `<div class="meter" aria-label="Risk meter">${["Normal", "Elevated", "High"].map((n, i) =>
+    `<div><i style="background:${i === idx ? meterCol[i] : meterOff[i]}"></i><span style="${i === idx ? "color:" + meterCol[i] + ";font-weight:600" : ""}">${n}</span></div>`).join("")}</div>`;
+  const defOn = (c.defensive || []).filter(d => d.now), recOn = (c.recovery || []).filter(d => d.now), shortOn = (c.short || []).filter(d => d.now);
+  const capeOn = defOn.some(d => /CAPE/.test(d.signal));
+  const baseRate = /base rate/.test(call.basis || "");
+  const horizons = [
+    recOn.length ? {h: "1–3 months", text: "Better than usual", tone: "good", tag: "Proven"}
+      : (defOn.length || shortOn.length) ? {h: "1–3 months", text: "Bumpier than usual", tone: "bad", tag: "Proven"}
+      : {h: "1–3 months", text: "Normal", tone: "neutral", tag: "No signal"},
+    baseRate ? {h: "6–12 months", text: "Normal odds, " + Math.round((call.base_rate || 0) * 100) + "%", tone: "neutral", tag: "No model edge"}
+      : {h: "6–12 months", text: Math.round((call.prob_up_12m || 0) * 100) + "% chance higher", tone: "neutral", tag: "Model"},
+    capeOn ? {h: "3–5 years", text: "Below-average returns", tone: "bad", tag: "Proven"} : {h: "3–5 years", text: "Valuation not stretched", tone: "good", tag: "Proven"},
+  ];
+  const sig = d => `<div class="mini"><b style="font-size:14px">${esc(d.signal)}</b>
+    <div class="row"><span>Rose within 12 months</span><span>${pct(d.on_up, 0, false)} <span class="dim">vs ${pct(d.off_up, 0, false)}</span></span></div>
+    <div class="row"><span>Average worst dip</span><b style="color:${TONE.bad}">${pct(d.dip_on)} <span class="dim" style="font-weight:400">vs ${pct(d.dip_off)}</span></b></div>
+    <div class="row"><span>History</span><span>${d.eps || "?"} episodes · proven at ${esc((d.horizons || []).map(h => h + "m").join(", "))}</span></div></div>`;
+  const prog = t => /VIX/.test(t.name + t.rule) ? Math.max(0, Math.min(1, (30 - (t.gap ?? 30)) / 30)) : Math.max(0, Math.min(1, (0.5 - (t.gap ?? 0.5)) / 0.5));
+  const trig = (c.triggers || []).map(t => `<div class="mini"><div class="row"><b style="font-size:14px;color:var(--ink)">${esc(t.rule)}</b>
+      <b style="color:#93C5FD;white-space:nowrap">${t.gap == null ? "" : t.gap <= 0 ? "Fired" : t.gap.toFixed(2) + " to go"}</b></div>
+      <div class="bar"><i style="width:${Math.round(prog(t) * 100)}%"></i></div><span class="dim">Now: ${esc(t.now)}</span></div>`).join("");
+  const done = combo ? (combo.episodes_list || []).filter(x => x.next12 != null) : [];
+  const since80 = done.filter(x => +x.start.slice(-4) >= 1980);
+  const usable = Object.entries(m.track || {}).filter(([k, t]) => t && t.usable).map(([k]) => k);
+  const reading = {"High risk": "Expect bigger swings than usual. No model can call the next 12 months, so the evidence favours watching the re-entry triggers over guessing the direction.",
+    "Elevated risk": "Risk is above normal. Keep an eye on the defensive signals and the re-entry triggers.",
+    "Recovery window": "A proven re-entry signal is on: historically one of the better times to add risk.",
+    "Normal": "No proven warning or re-entry signal is on. History says expect roughly normal odds."}[c.level] || "";
+  return `<section class="card"><span class="dim">Market stance</span><span class="stance" style="font-size:34px;color:${TONE[levelTone]}">${esc(c.level || "n/a")}</span>
+      ${meter}<p class="p">${esc(c.summary || "")}</p></section>
+    ${horizonCards(horizons)}
+    <div class="wide2"><section style="display:flex;flex-direction:column;gap:8px"><h2>Why: signals on now</h2>
+      ${defOn.map(sig).join("") || `<div class="mini"><span class="p">No defensive signal is on.</span></div>`}
+      ${recOn.map(sig).join("")}
+      ${combo ? `<div class="mini"><b style="font-size:14px">Together: ${combo.eps} past episodes</b><span class="p" style="font-size:13px">Next 12 months averaged ${pct(combo.on_mean, 1)} vs ${pct(combo.off_mean, 1)} otherwise${since80.length ? `. Since 1980, ${since80.filter(x => x.next12 > 0).length} of ${since80.length} were followed by gains` : ""}.</span></div>` : ""}
+    </section>
+    <section style="display:flex;flex-direction:column;gap:8px"><h2>Re-entry triggers to watch</h2>${trig}
+      <div class="mini"><b style="font-size:14px">Most similar past periods</b>
+        ${(a.episodes || []).map(x => `<div class="row"><span>${esc(x.closest)}</span><b style="color:${x.next12 > 0.03 ? TONE.good : x.next12 < -0.03 ? TONE.bad : "var(--ink)"}">${pct(x.next12, 1)}</b></div>`).join("")}
+        <span class="dim" style="line-height:1.45">Next-12-month outcome after each. Similar months averaged ${pct(a.mean, 1)}, positive ${pct(a.up, 0, false)} of the time.</span></div>
+      <div class="mini"><b style="font-size:14px">Model track record</b><span class="p" style="font-size:13px">${usable.length ? "Usable out of sample: " + esc(usable.join(", ")) : "No model has a proven 12-month edge out of sample since 1975, so odds shown are the historical base rate."}</span></div>
+    </section></div>
+    <section class="reading"><span style="font-size:12px;color:#93C5FD">The reading</span><p>${esc(reading)}</p></section>`;
+}
+
+// ------------------------------------------------------------------ index / stock view
+function renderAsset(t, opts = {}) {
+  const m = t.metrics || {}, ev = t.risk_evidence;
+  const b = m.beta;
+  return `<section class="card"><div class="row" style="font-size:15px"><b style="font-size:20px;color:var(--ink)">${esc(t.name)} <span class="dim" style="font-size:14px;font-weight:500">${esc(t.symbol)}</span></b>
+      <span class="dim">${esc(t.sector || (t.kind === "stock" ? "" : t.kind.toUpperCase()))}</span></div>
+      <div class="row"><span>Last ${esc(m.date || "")}</span><b style="color:var(--ink)">${m.price == null ? "n/a" : m.price.toLocaleString(undefined, {maximumFractionDigits: 2})} <span style="color:${(m.chg_1d || 0) >= 0 ? TONE.good : TONE.bad}">${pct(m.chg_1d, 1)}</span></b></div>
+      <span class="stance" style="color:${TONE[t.headline_tone]}">${esc(t.headline)}</span>
+      <div class="layerbar" aria-label="Layer tones">${t.layers.map(l => `<i style="background:${TONE[l.tone]}"></i>`).join("")}</div>
+      <p class="p">${esc(t.reading)}</p></section>
+    <div class="wide2"><section style="display:flex;flex-direction:column;gap:8px"><h2>The layers</h2>
+      ${t.layers.map((l, i) => `<div class="mini" style="flex-direction:row;justify-content:space-between;align-items:center;gap:10px">
+        <div style="display:flex;flex-direction:column;gap:2px"><span class="dim">${i + 1} · ${esc(l.name)}</span><b style="font-size:14px">${esc(l.text)}</b></div>
+        ${pill({good: "Tailwind", bad: "Headwind", warn: "Mixed", neutral: "Neutral"}[l.tone], l.tone)}</div>`).join("")}</section>
+    <section style="display:flex;flex-direction:column;gap:8px"><h2>Direction by horizon</h2>${horizonCards(t.horizons)}
+      <div class="mini"><b style="font-size:14px">Market risk it carries</b>
+        <div class="row"><span>Sensitivity to the S&amp;P 500 (beta)</span><b>${b == null ? "n/a" : b.toFixed(2)}</b></div>
+        <div class="row"><span>If the S&amp;P falls 10%, typical move</span><b style="color:${b != null && b < 0 ? TONE.good : TONE.bad}">${b == null ? "n/a" : pct(-0.1 * b, 0)}</b></div>
+        <div class="row"><span>Moves explained by the market</span><b>${m.r2 == null ? "n/a" : Math.round(m.r2 * 100) + "%"}</b></div>
+        <div class="row"><span>Returns: 1m · 3m · 12m</span><b>${pct(m.ret_1m)} · ${pct(m.ret_3m)} · ${pct(m.ret_12m)}</b></div></div>
+      ${ev ? `<div class="mini"><b style="font-size:14px">In past months like now (${ev.episodes} episodes)</b>
+        <div class="row"><span>Average worst dip within 12 months</span><b style="color:${TONE.bad}">${pct(ev.dip)} <span class="dim" style="font-weight:400">S&amp;P ${pct(ev.spx_dip)}</span></b></div>
+        <div class="row"><span>Rose within 12 months</span><b>${pct(ev.rose, 0, false)} <span class="dim" style="font-weight:400">vs ${pct(ev.rose_other, 0, false)} otherwise</span></b></div></div>` : ""}
+    </section></div>
+    <section style="display:flex;flex-direction:column;gap:8px"><h2>What would flip the view</h2>
+      ${t.flips.map(f => `<div class="mini"><b style="font-size:14px">${esc(f.name)}</b><span class="dim" style="font-size:13px">${esc(f.text)}</span></div>`).join("")}</section>
+    <section class="reading"><span style="font-size:12px;color:#93C5FD">How to read it</span><p>${esc(opts.reading || "Start with the layers: the more of them point the same way, the stronger the view. Only tags marked Proven or Research-backed rest on tested evidence.")}</p></section>`;
+}
+async function loadAsset(sym) {
+  const u = S.bySym[sym.toUpperCase()];
+  if (!u) return null;
+  return getJSON("data/tickers/" + u.f + ".json");
+}
+async function renderNasdaq() {
+  const t = await loadAsset("^NDX");
+  if (!t) return `<div class="note">Nasdaq 100 data is not in this build yet.</div>`;
+  return renderAsset(t, {reading: "The Nasdaq takes the market's stance, then scales it: tech usually swings harder than the S&P and reacts more to real interest rates."});
+}
+async function renderStock(sym) {
+  const recent = JSON.parse(localStorage.getItem("mn_recent") || "[]");
+  const quick = ["NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "TSLA", "JPM"].filter(s => S.bySym[s]);
+  const picker = `<section class="card"><span class="dim">Pick a stock, or type any ticker in the search box</span>
+    <div class="chips">${[...new Set([...recent, ...quick])].slice(0, 10).map(s => `<a class="chip" href="#stock/${encodeURIComponent(s)}" style="display:inline-flex;align-items:center;text-decoration:none">${esc(s)}</a>`).join("")}</div></section>`;
+  if (!sym) return picker;
+  const t = await loadAsset(sym);
+  if (!t) return `<section class="card"><b style="font-size:16px">${esc(sym)} is not in today's list</b>
+      <p class="p">Each run covers the S&amp;P 500, the Nasdaq 100 and your watchlist. Add ${esc(sym)} to the watchlist and it appears after the next refresh.</p>
+      <button class="btn primary" type="button" id="addWatch" style="align-self:flex-start">Add ${esc(sym)} to watchlist</button></section>` + picker;
+  localStorage.setItem("mn_recent", JSON.stringify([sym, ...recent.filter(s => s !== sym)].slice(0, 8)));
+  return renderAsset(t);
+}
+
+// ------------------------------------------------------------------ chat
+const SUGGEST = ["What's the market stance?", "When is it safer to add risk?", "Nasdaq vs S&P risk", "How does NVDA look?"];
+function bubble(m) {
+  if (m.role === "user") return `<div class="me">${esc(m.text)}</div>`;
+  const paras = String(m.text || "").split(/\n{2,}|\n(?=[-•])/).map(x => `<p>${esc(x.trim())}</p>`).join("");
+  const check = m.check ? (m.check.total === 0 ? "" : m.check.unmatched.length === 0
+      ? `<span class="looked" style="color:#6EE7B7">✓ All ${m.check.total} numbers matched your data</span>`
+      : `<span class="looked" style="color:#FCD34D">${m.check.unmatched.length} of ${m.check.total} numbers not found in your data: ${esc(m.check.unmatched.join(", "))}</span>`) : "";
+  return `${m.looked ? `<div class="looked">Looked up: ${esc(m.looked.join(", "))}</div>` : ""}
+    <div class="ai${m.wait ? " wait" : ""}">${paras}
+      ${m.sources && m.sources.length ? `<div class="chips">${m.sources.map(s => `<a class="pill" style="color:#93C5FD;background:#16294D;text-decoration:none;font-size:12px;padding:4px 8px" href="${esc(s.href)}">${esc(s.label)}</a>`).join("")}</div>` : ""}
+      ${check}${m.model ? `<span class="dim" style="font-size:11px">${esc(m.model)}</span>` : ""}</div>`;
+}
+function renderChat() {
+  return `<section class="card"><div class="row"><b style="font-size:22px;color:var(--ink)">Ask Navigator</b>${pill("Gemini", "blue")}</div>
+      <p class="p" style="font-size:13px">Answers use your latest run. Gemini writes the words; every number comes from your data and is checked before it is shown.</p></section>
+    <section class="chips" aria-label="Suggested questions">${SUGGEST.map(q => `<button class="chip" type="button" data-q="${esc(q)}">${esc(q)}</button>`).join("")}</section>
+    <section class="msgs" id="msgs" aria-label="Conversation">${S.chat.map(bubble).join("")}</section>
+    <form class="compose" id="compose"><label for="cq" style="position:absolute;left:-9999px">Your question</label>
+      <input id="cq" placeholder="Ask about the economy, an index or a stock" autocomplete="off" enterkeyhint="send">
+      <button class="btn primary" type="submit" aria-label="Send" style="width:48px;height:48px;justify-content:center;padding:0">➜</button></form>
+    <p class="foot">Google's free tier may use prompts to improve its products, so don't share private details. <a href="#" id="clearChat">Clear conversation</a></p>`;
+}
+async function ask(q) {
+  q = q.trim(); if (!q) return;
+  S.chat.push({role: "user", text: q});
+  const wait = {role: "assistant", text: "Looking at your data…", wait: true};
+  S.chat.push(wait); draw();
+  try {
+    const r = await fetch("api/chat", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({messages: S.chat.filter(m => !m.wait).slice(-10).map(m => ({role: m.role, text: m.text})), symbol: S.lastSymbol || null})});
+    const d = await r.json();
+    Object.assign(wait, {text: d.text || d.error || "No answer.", looked: d.looked, check: d.check, model: d.model, sources: d.sources, wait: false});
+  } catch (e) {
+    Object.assign(wait, {text: "Chat needs the Cloudflare deployment (it can't run from a file on your computer).", wait: false});
+  }
+  S.chat = S.chat.slice(-30);
+  localStorage.setItem("mn_chat", JSON.stringify(S.chat.filter(m => !m.wait)));
+  draw();
+}
+
+// ------------------------------------------------------------------ routing
+let current = "";
+async function draw() {
+  const [tab, sym] = (location.hash.slice(1) || "sp500").split("/");
+  document.querySelectorAll(".tab").forEach(a => a.setAttribute("aria-current", a.dataset.tab === tab ? "page" : "false"));
+  const v = $("#view");
+  try {
+    if (tab === "economy") v.innerHTML = renderEconomy();
+    else if (tab === "nasdaq") v.innerHTML = await renderNasdaq();
+    else if (tab === "stock") { if (sym) S.lastSymbol = decodeURIComponent(sym).toUpperCase(); v.innerHTML = await renderStock(sym ? decodeURIComponent(sym).toUpperCase() : null); }
+    else if (tab === "ask") {
+      v.innerHTML = renderChat();
+      v.querySelectorAll("[data-q]").forEach(b => b.onclick = () => ask(b.dataset.q));
+      $("#compose").onsubmit = e => { e.preventDefault(); const i = $("#cq"); const q = i.value; i.value = ""; ask(q); };
+      $("#clearChat").onclick = e => { e.preventDefault(); S.chat = []; localStorage.removeItem("mn_chat"); draw(); };
+      const msgs = $("#msgs"); if (msgs.lastElementChild) msgs.lastElementChild.scrollIntoView({block: "end"});
+    } else v.innerHTML = renderMarket();
+    const add = $("#addWatch");
+    if (add) add.onclick = async () => {
+      add.disabled = true;
+      try { const r = await fetch("api/watchlist", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({symbol: sym})}); const d = await r.json(); toast(d.message || "Done"); }
+      catch (e) { toast("Adding to the watchlist needs the Cloudflare deployment."); }
+    };
+  } catch (e) {
+    v.innerHTML = `<div class="note">Could not load this view: ${esc(e.message)}</div>`;
+  }
+  if (tab !== current) { window.scrollTo(0, 0); current = tab; }
+}
+$("#searchForm").onsubmit = e => {
+  e.preventDefault();
+  const q = $("#q").value.trim(); if (!q) return;
+  const l = q.toLowerCase();
+  if (/^econ/.test(l)) location.hash = "economy";
+  else if (/^(s&p|sp500|spx|s and p|\^gspc)/.test(l)) location.hash = "sp500";
+  else if (/^(nasdaq|ndx|\^ndx)/.test(l)) location.hash = "nasdaq";
+  else if (/^(ask|chat)/.test(l)) location.hash = "ask";
+  else location.hash = "stock/" + encodeURIComponent(q.toUpperCase().replace(/^\$/, ""));
+  $("#q").value = ""; $("#q").blur();
+};
+$("#refresh").onclick = async () => {
+  const b = $("#refresh"); b.disabled = true;
+  try { const r = await fetch("api/refresh", {method: "POST"}); const d = await r.json(); toast(d.message || "Refresh requested"); }
+  catch (e) { toast("Refresh needs the Cloudflare deployment."); }
+  setTimeout(() => b.disabled = false, 10000);
+};
+window.addEventListener("hashchange", draw);
+(async () => {
+  try {
+    [S.summary, S.universe] = await Promise.all([getJSON("data/summary.json"), getJSON("data/universe.json")]);
+    S.universe.forEach(u => S.bySym[u.s.toUpperCase()] = u);
+    renderHeader(); draw();
+  } catch (e) {
+    $("#view").innerHTML = `<div class="note">The data files are missing. The first GitHub run creates them (Actions → Publish → Run workflow).</div>`;
+  }
+})();
+</script>
+</body>
+</html>
