@@ -1,0 +1,217 @@
+{
+ "registered": "2026-11-25",
+ "rule": "Average of signed cross-sectional percentile ranks of these features; top 10% of current S&P 500 members each month-end, equal weight, held one month, 0.10% per name replaced; scored against the average member.",
+ "source": "Idea factory discovery results only (price 1996-2012, fundamentals 2010-2017); holdout results not used.",
+ "features": [
+  {
+   "feature": "volratio_1m_12m_vs_industry",
+   "sign": -1,
+   "family": "Risk",
+   "disc_t": 3.02,
+   "block": "price"
+  },
+  {
+   "feature": "beta_12m",
+   "sign": -1,
+   "family": "Market link",
+   "disc_t": 2.74,
+   "block": "price"
+  },
+  {
+   "feature": "downcapture_12m",
+   "sign": -1,
+   "family": "Market link",
+   "disc_t": 2.71,
+   "block": "price"
+  },
+  {
+   "feature": "upcapture_12m",
+   "sign": -1,
+   "family": "Market link",
+   "disc_t": 2.47,
+   "block": "price"
+  },
+  {
+   "feature": "kurt_12m",
+   "sign": 1,
+   "family": "Risk",
+   "disc_t": 2.37,
+   "block": "price"
+  },
+  {
+   "feature": "downvol_12m",
+   "sign": -1,
+   "family": "Risk",
+   "disc_t": 2.32,
+   "block": "price"
+  },
+  {
+   "feature": "vol_12m",
+   "sign": -1,
+   "family": "Risk",
+   "disc_t": 2.1,
+   "block": "price"
+  },
+  {
+   "feature": "corr_12m_change_3m",
+   "sign": 1,
+   "family": "Market link",
+   "disc_t": 2.09,
+   "block": "price"
+  },
+  {
+   "feature": "ret_36_12",
+   "sign": -1,
+   "family": "Returns",
+   "disc_t": 2.06,
+   "block": "price"
+  },
+  {
+   "feature": "max_1m",
+   "sign": -1,
+   "family": "Risk",
+   "disc_t": 2.01,
+   "block": "price"
+  },
+  {
+   "feature": "seasonal_1_5y",
+   "sign": 1,
+   "family": "Seasonality",
+   "disc_t": 1.99,
+   "block": "price"
+  },
+  {
+   "feature": "upvol_12m",
+   "sign": -1,
+   "family": "Risk",
+   "disc_t": 1.97,
+   "block": "price"
+  },
+  {
+   "feature": "skew_3m",
+   "sign": -1,
+   "family": "Risk",
+   "disc_t": 1.9,
+   "block": "price"
+  },
+  {
+   "feature": "vol_6m",
+   "sign": -1,
+   "family": "Risk",
+   "disc_t": 1.89,
+   "block": "price"
+  },
+  {
+   "feature": "idio_12m",
+   "sign": -1,
+   "family": "Market link",
+   "disc_t": 1.87,
+   "block": "price"
+  },
+  {
+   "feature": "corr_12m",
+   "sign": -1,
+   "family": "Market link",
+   "disc_t": 1.86,
+   "block": "price"
+  },
+  {
+   "feature": "upcapture_12m_vs_industry",
+   "sign": -1,
+   "family": "Market link",
+   "disc_t": 1.79,
+   "block": "price"
+  },
+  {
+   "feature": "skew_12m_change_3m",
+   "sign": -1,
+   "family": "Risk",
+   "disc_t": 1.73,
+   "block": "price"
+  },
+  {
+   "feature": "upvol_3m",
+   "sign": -1,
+   "family": "Risk",
+   "disc_t": 1.72,
+   "block": "price"
+  },
+  {
+   "feature": "beta_12m_vs_industry",
+   "sign": -1,
+   "family": "Market link",
+   "disc_t": 1.64,
+   "block": "price"
+  },
+  {
+   "feature": "skew_12m_vs_industry",
+   "sign": 1,
+   "family": "Risk",
+   "disc_t": 1.61,
+   "block": "price"
+  },
+  {
+   "feature": "f_book_yield",
+   "sign": -1,
+   "family": "Valuation",
+   "disc_t": 2.28,
+   "block": "fundamentals"
+  },
+  {
+   "feature": "f_roe",
+   "sign": 1,
+   "family": "Profitability",
+   "disc_t": 2.15,
+   "block": "fundamentals"
+  },
+  {
+   "feature": "f_dividend_yield",
+   "sign": 1,
+   "family": "Capital",
+   "disc_t": 1.6,
+   "block": "fundamentals"
+  },
+  {
+   "feature": "f_asset_turnover",
+   "sign": 1,
+   "family": "Profitability",
+   "disc_t": 1.43,
+   "block": "fundamentals"
+  },
+  {
+   "feature": "f_op_margin_vs_industry",
+   "sign": 1,
+   "family": "Profitability",
+   "disc_t": 1.18,
+   "block": "fundamentals"
+  },
+  {
+   "feature": "f_cash_assets",
+   "sign": -1,
+   "family": "Balance sheet",
+   "disc_t": 1.08,
+   "block": "fundamentals"
+  },
+  {
+   "feature": "f_book_yield_vs_industry",
+   "sign": -1,
+   "family": "Valuation",
+   "disc_t": 1.0,
+   "block": "fundamentals"
+  },
+  {
+   "feature": "f_sales_yield",
+   "sign": -1,
+   "family": "Valuation",
+   "disc_t": 0.97,
+   "block": "fundamentals"
+  },
+  {
+   "feature": "f_accruals_vs_industry",
+   "sign": -1,
+   "family": "Quality",
+   "disc_t": 0.65,
+   "block": "fundamentals"
+  }
+ ]
+}

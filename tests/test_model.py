@@ -168,3 +168,81 @@ def test_research_scoring_maps_modules():
     item = {"title": "The yield curve and recession risk", "summary": "We study credit spreads and the business cycle."}
     score, module, hits = _score(item, cfg["modules"])
     assert score >= cfg["min_score"] and module == "recession_risk" and "yield curve" in hits
+
+
+def test_trigger_context_splits_episodes_by_economy():
+    import sys, pathlib
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
+    import engine
+    idx = pd.date_range("2000-01-31", periods=240, freq="ME")
+    spx = pd.Series(100.0, index=idx)
+    sahm = pd.Series(0.0, index=idx)
+    un = pd.Series(4.0, index=idx)
+    vix_flag = pd.Series(0.0, index=idx)
+    # episode 1 (month 60): economy deteriorating (Sahm 0.8 published the month before), then a 30% fall
+    sahm.iloc[55:75] = 0.8
+    vix_flag.iloc[60:62] = 1
+    spx.iloc[61:73] = np.linspace(95, 70, 12)
+    spx.iloc[73:] = 70.0
+    # episode 2 (month 150): economy stable, then a 25% rise
+    vix_flag.iloc[150:152] = 1
+    spx.iloc[151:163] = np.linspace(72, 87.5, 12)
+    spx.iloc[163:] = 87.5
+    cpi = pd.Series(100 * 1.02 ** (np.arange(240) / 12), index=idx)
+    cpi.iloc[50:66] = cpi.iloc[50] * 1.06 ** (np.arange(16) / 12) * 1.03     # inflation above 4% around episode 1
+    P = pd.DataFrame({"fred:SAHMREALTIME": sahm, "fred:UNRATE": un, "px:^GSPC": spx, "fred:CPIAUCSL": cpi})
+    S = {"Volatility stress (VIX 30+ at month-end)": (vix_flag, "bullish", "")}
+    tc = engine.trigger_context(S, spx, P)
+    g = tc["triggers"]["Volatility stress (VIX 30+ at month-end)"]["groups"]
+    eps = tc["triggers"]["Volatility stress (VIX 30+ at month-end)"]["episodes"]
+    assert [e["start"] for e in eps] == ["Jan 2005", "Jul 2012"]
+    assert g["deteriorating"]["n"] == 1 and g["deteriorating"]["avg12"] < -0.2 and g["deteriorating"]["dip"] < -0.2
+    assert g["stable"]["n"] == 1 and g["stable"]["avg12"] > 0.15
+    assert tc["now"]["deteriorating"] is False
+    bi = tc["triggers"]["Volatility stress (VIX 30+ at month-end)"]["by_inflation"]
+    assert bi["high"]["n"] == 1 and bi["high"]["avg12"] < 0 and bi["low"]["n"] == 1 and bi["low"]["avg12"] > 0
+
+
+def test_pooled_transfer_detects_stocks_that_follow_the_sp500_trend(tmp_path):
+    import sys, pathlib
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
+    import fetch_all as fa
+    import research
+    rng = np.random.default_rng(5)
+    idx = pd.date_range("1985-01-31", "2025-12-31", freq="ME")
+    # S&P with regimes: long rises, occasional falls
+    spx_r = np.where((np.arange(len(idx)) // 30) % 4 == 3, -0.015, 0.012) + rng.normal(0, 0.03, len(idx))
+    spx = pd.Series(100 * np.exp(np.cumsum(spx_r)), index=idx)
+    broken = (spx < spx.rolling(10).mean()).shift(0).fillna(False).values
+    days = pd.bdate_range(idx[0] - pd.offsets.MonthBegin(1), idx[-1])
+    cols = {}
+    for k in range(40):                                   # stocks do worse in the months after the S&P trend breaks
+        r = np.where(np.roll(broken, 1), -0.02, 0.015) + rng.normal(0, 0.06, len(idx))
+        m = pd.Series(50 * np.exp(np.cumsum(r)), index=idx)
+        cols[f"S{k:02d}"] = m.reindex(days, method="bfill")
+    store = tmp_path / "store"; store.mkdir()
+    fa.save(pd.DataFrame(cols), store / "universe_prices")
+    P = pd.DataFrame({"px:^GSPC": spx})
+    out = research.pooled_transfer(store, P, np.random.default_rng(1))
+    by_h = {r["horizon"]: r for r in out}
+    assert set(by_h) == {3, 12}
+    assert by_h[3]["late_skill"] > 0 and by_h[3]["verdict"] in ("Solid", "Not proven")
+
+
+def test_pooled_transfer_counts_only_months_in_the_index(tmp_path, monkeypatch):
+    import sys, pathlib
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
+    import fetch_all as fa
+    import research, earnings
+    idx = pd.date_range("1990-01-31", "2025-12-31", freq="ME")
+    rng = np.random.default_rng(2)
+    spx = pd.Series(100 * np.exp(np.cumsum(rng.normal(0.006, 0.04, len(idx)))), index=idx)
+    days = pd.bdate_range(idx[0] - pd.offsets.MonthBegin(1), idx[-1])
+    cols = {f"S{k:02d}": pd.Series(50 * np.exp(np.cumsum(rng.normal(0.006, 0.06, len(idx)))), index=idx).reindex(days, method="bfill")
+            for k in range(40)}
+    store = tmp_path / "store"; store.mkdir()
+    fa.save(pd.DataFrame(cols), store / "universe_prices")
+    mem = pd.DataFrame({"ticker": list(cols), "start": pd.Timestamp("2005-01-01"), "end": pd.Timestamp("2100-01-01")})
+    monkeypatch.setattr(earnings, "load_membership", lambda path: mem)
+    out = research.pooled_transfer(store, pd.DataFrame({"px:^GSPC": spx}), np.random.default_rng(1))
+    assert out and all("counted only while in the S&P 500" in r["reference"] for r in out)

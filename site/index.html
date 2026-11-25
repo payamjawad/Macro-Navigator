@@ -225,6 +225,8 @@ function renderMarket() {
       <div class="mini"><b style="font-size:14px">Model track record</b><span class="p" style="font-size:13px">${usable.length ? "Usable out of sample: " + esc(usable.join(", ")) : "No model has a proven 12-month edge out of sample since 1975, so odds shown are the historical base rate."}</span></div>
     </section></div>
     ${labCard(m.research)}
+    ${forwardCard(m.forward_test)}
+    ${testedCard(m.tested_rejected)}
     ${explainBox("sp500", "Explain the S&P 500 view in plain English: what drives the stance, what each horizon means, and what history says about buying now.", "")}
     <section class="reading"><span style="font-size:12px;color:#93C5FD">The reading</span><p>${esc(reading)}</p></section>`;
 }
@@ -240,7 +242,11 @@ function trendCard(t) {
     <p class="p" style="font-size:13px">Hold the S&amp;P 500 while it closes a month at or above its 10-month average; otherwise hold T-bills. On data never used to design it, this kept returns similar and roughly halved the worst falls.</p>
     ${n ? `<div class="row"><span>Now (${esc(n.month)})</span><b style="color:${n.in_stocks ? TONE.good : TONE.bad}">${n.in_stocks ? "In stocks" : "Out of stocks"}: ${f0(n.price)} vs ${f0(n.average)} (${pct(n.gap, 1)})</b></div>` : ""}
     <span class="dim" style="font-size:12px">Rule vs buy and hold: annual return · Sharpe · worst fall</span>${rows}
-    <span class="dim" style="font-size:11px">Judged on month-end closes; a break during the month counts only if it holds at the close. Price returns, no trading costs or taxes.</span></section>`;
+    ${(t.decades || []).length ? `<details><summary class="dim" style="cursor:pointer">Decade by decade (is it still working?)</summary>
+      ${t.decades.map(d => `<div class="row"><span>${esc(d.decade)} <span class="dim">(out ${Math.round(d.out_share * 100)}% of months, ${d.switches} switches)</span></span>
+        <b>${pct(d.rule_cagr, 1)} · ${pct(d.rule_maxdd, 0)} <span class="dim" style="font-weight:400">vs ${pct(d.bh_cagr, 1)} · ${pct(d.bh_maxdd, 0)}</span></b></div>`).join("")}
+      <span class="dim" style="font-size:11px">Annual return · worst fall, rule vs buy and hold. The edge is protection: look for smaller worst falls, decade after decade.</span></details>` : ""}
+    <span class="dim" style="font-size:11px">Judged on month-end closes; a break during the month counts only if it holds at the close. After ${((t.cost_per_switch || 0) * 100).toFixed(2)}% per switch${(t.periods[t.periods.length - 1] || {}).switches_per_year != null ? ` (about ${t.periods[t.periods.length - 1].switches_per_year.toFixed(1)} a year recently)` : ""}; price returns plus T-bill interest, no taxes.</span></section>`;
 }
 function labCard(lab) {
   if (!lab || !(lab.results || []).length) return "";
@@ -251,11 +257,11 @@ function labCard(lab) {
     const a = hs[3], b = hs[12], one = a || b;
     const w = a && a.late_when_on ? ` · 3m when on: rose ${pct(a.late_when_on.rose_on, 0, false)} vs ${pct(a.late_when_on.rose_off, 0, false)}` : "";
     return `<div class="mini" style="gap:6px"><div class="row" style="align-items:center"><b style="font-size:13px;color:var(--ink)">${esc(name)}</b>
-        <span style="display:flex;gap:6px;flex:none">${a ? pill("3m " + a.verdict, VT[a.verdict] || "neutral") : ""}${b ? pill("12m " + b.verdict, VT[b.verdict] || "neutral") : ""}</span></div>
+        <span style="display:flex;gap:6px;flex:none">${a ? pill("3m " + VLABEL(a.verdict), VT[a.verdict] || "neutral") : ""}${b ? pill("12m " + VLABEL(b.verdict), VT[b.verdict] || "neutral") : ""}</span></div>
       <span class="dim" style="font-size:11px">3m skill ${esc(one.early)} ${fmtSkill(a && a.early_skill)} · ${esc(one.late)} ${fmtSkill(a && a.late_skill)} (luck level ${fmtSkill(a && a.placebo_p95)})${w} · ${esc(one.reference)}</span></div>`;
   }).join("");
   return `<section style="display:flex;flex-direction:column;gap:8px"><h2>Research lab <span class="dim" style="font-weight:400">(retested weekly)</span></h2>
-    <p class="p" style="font-size:13px">${esc(lab.protocol)}</p>${rows}<span class="dim" style="font-size:11px">Last run ${esc((lab.generated || "").slice(0, 10))}.</span></section>`;
+    <p class="p" style="font-size:13px">${esc(lab.protocol)}</p>${rows}<span class="dim" style="font-size:11px">"No evidence yet" means it could be luck: treat it as not working. Last run ${esc((lab.generated || "").slice(0, 10))}.</span></section>`;
 }
 function contextCard(tc) {
   if (!tc || !tc.triggers) return "";
@@ -269,6 +275,7 @@ function contextCard(tc) {
   return `<div class="mini"><b style="font-size:14px">Does the economy change the VIX signal?</b>
     <span class="dim" style="line-height:1.45">After a VIX month-end close at 30 or above, by inflation at the time. Next 12 months:</span>
     ${row("Inflation below 4%", bi.low)}${row("Inflation 4% or more", bi.high)}
+    ${v.baseline ? `<div class="row"><span class="dim">For comparison: all months since ${esc(v.baseline.since)} (${v.baseline.months})</span><b class="dim">${pct(v.baseline.rose, 0, false)} rose · ${pct(v.baseline.avg12, 0)} avg</b></div>` : ""}
     <span class="dim" style="font-size:11px">Splitting by jobs instead made little difference: unemployment lags and stays high into recoveries.</span>
     <span class="p" style="font-size:13px">${nowTxt}</span>
     <details><summary class="dim" style="cursor:pointer">Every episode</summary>${eps}</details>
@@ -305,7 +312,76 @@ function linkCard(t) {
       ${L.after_vix ? `<div class="row"><span>12 months after VIX month-end ≥ 30 (${L.after_vix.episodes})</span><b>${pct(L.after_vix.asset, 0)} <span class="dim" style="font-weight:400">vs S&amp;P ${pct(L.after_vix.spx, 0)}</span></b></div>` : ""}
       <span class="dim" style="font-size:11px">Monthly data since ${esc(L.since)}. The S&amp;P's signals are the tested part; this shows how this asset behaved in the same situations.</span>`
       : `<span class="dim">Not enough shared history with the S&amp;P 500 yet.</span>`}
-    ${f && f.growth != null ? `<span class="dim" style="font-size:12px">Company figures (${esc(f.period)}, SEC, not tested as a signal): revenue ${pct(f.growth, 0)} year on year${f.margin != null ? `, net margin ${pct(f.margin, 0, false)}` : ""}.</span>` : ""}</section>`;
+    ${f && f.growth != null && !(t.financials && !t.financials.unavailable) ? `<span class="dim" style="font-size:12px">Company figures (${esc(f.period)}, SEC, not tested as a signal): revenue ${pct(f.growth, 0)} year on year${f.margin != null ? `, net margin ${pct(f.margin, 0, false)}` : ""}.</span>` : ""}</section>`;
+}
+const VLABEL = v => v === "Not proven" ? "No evidence yet" : v;
+const money = x => { if (x == null || !isFinite(x)) return "n/a"; const a = Math.abs(x), sg = x < 0 ? "−" : "";
+  return sg + "$" + (a >= 1e12 ? (a / 1e12).toFixed(2) + "tn" : a >= 1e9 ? (a / 1e9).toFixed(1) + "bn" : a >= 1e6 ? (a / 1e6).toFixed(0) + "m" : a.toFixed(0)); };
+const pts = x => x == null || !isFinite(x) ? "" : ` <span class="dim" style="font-weight:400">${minus((x >= 0 ? "+" : "") + (x * 100).toFixed(1))} pts vs a year ago</span>`;
+const fdate = d => { if (!d) return "n/a"; const t = new Date(d + "T12:00:00Z"); return isNaN(t) ? d : t.toLocaleDateString(undefined, {day: "numeric", month: "short", year: "numeric"}); };
+function earningsCard(t) {
+  const e = t.earnings;
+  if (!e) return "";
+  const nx = e.next || {}, soon = nx.days != null && nx.days >= 0 && nx.days <= 14;
+  const when = nx.date ? `${fdate(nx.date)}${nx.days == null ? "" : nx.days > 0 ? ` · in ${nx.days} days` : " · due now"}` : "n/a";
+  const tim = x => x === "amc" ? "after the close" : "before the open";
+  const rows = (e.recent || []).map(r => `<div class="row"><span>${fdate(r.date)} <span class="dim">(${tim(r.timing)})</span></span>
+      <b style="color:${r.move >= 0 ? TONE.good : TONE.bad}">${pct(r.move, 1)} <span class="dim" style="font-weight:400">vs S&amp;P</span></b></div>`).join("");
+  const n = (e.recent || []).length;
+  return `<section class="card"><b style="font-size:15px;color:var(--ink)">Earnings</b>
+    <div class="row"><span>Next results (estimated)</span><b>${esc(when)}</b></div>
+    ${soon ? `<div class="note">Results are about ${nx.days} days away. A typical results-day move for ${esc(t.symbol)} is about ±${(e.typical_move * 100).toFixed(1)}% against the S&amp;P. In the tests, waiting until after the news cost nothing on average and avoids that jump.</div>` : ""}
+    <div class="row"><span>Typical results-day move (last ${n})</span><b>±${(e.typical_move * 100).toFixed(1)}%</b></div>
+    <div class="row"><span>Rose against the S&amp;P on results day</span><b>${Math.round(e.up_share * n)} of ${n}</b></div>
+    <details><summary class="dim" style="cursor:pointer">Last ${n} results days</summary>${rows}</details>
+    <span class="dim" style="font-size:11px">Dates from SEC filings (${e.count} since ${esc(e.since)}). Next date: ${esc(nx.method || "")}. ${esc(e.note || "")}</span></section>`;
+}
+function financialsCard(t) {
+  const f = t.financials;
+  if (!f) return "";
+  if (f.unavailable) return `<section class="card"><b style="font-size:15px;color:var(--ink)">Company financials</b><span class="dim">${esc(f.unavailable)}</span></section>`;
+  const row = (label, val, extra = "") => val == null || val === "n/a" ? "" : `<div class="row"><span>${label}</span><b>${val}${extra}</b></div>`;
+  const g = x => x == null ? "" : ` <span class="dim" style="font-weight:400">${pct(x, 0)} vs a year ago</span>`;
+  const sc = f.share_change == null ? null : `${pct(f.share_change, 1)} <span class="dim" style="font-weight:400">${f.share_change < -0.005 ? "(buybacks)" : f.share_change > 0.005 ? "(new shares)" : ""}</span>`;
+  return `<section class="card"><b style="font-size:15px;color:var(--ink)">Company financials</b>
+    ${f.quarter_end ? `<span class="dim" style="font-size:12px">Latest quarter, to ${fdate(f.quarter_end)} (filed ${fdate(f.filed)})</span>` : ""}
+    ${row("Revenue", f.revenue == null ? null : money(f.revenue), g(f.revenue_growth))}
+    ${row("Gross margin", f.gross_margin == null ? null : pct(f.gross_margin, 1, false), pts(f.gross_margin_chg))}
+    ${row("Operating margin", f.op_margin == null ? null : pct(f.op_margin, 1, false), pts(f.op_margin_chg))}
+    ${row("Net income", f.net_income == null ? null : money(f.net_income), f.net_income_growth != null ? g(f.net_income_growth) : (f.net_income_year_ago != null ? ` <span class="dim" style="font-weight:400">a year ago ${money(f.net_income_year_ago)}</span>` : ""))}
+    ${row("R&amp;D", f.rnd_share == null ? null : pct(f.rnd_share, 0, false) + " of revenue")}
+    ${f.year_end ? `<span class="dim" style="font-size:12px;margin-top:4px">Last full year, to ${fdate(f.year_end)}</span>` : ""}
+    ${row("Revenue", f.revenue_year == null ? null : money(f.revenue_year))}
+    ${row("Operating cash flow", f.op_cash_flow_year == null ? null : money(f.op_cash_flow_year))}
+    ${row("Capital spending", f.capex_year == null ? null : money(f.capex_year))}
+    ${row("Free cash flow", f.free_cash_flow_year == null ? null : money(f.free_cash_flow_year), f.fcf_margin == null ? "" : ` <span class="dim" style="font-weight:400">${pct(f.fcf_margin, 0, false)} of revenue</span>`)}
+    ${row("Dividends paid", f.dividends_year == null ? null : money(f.dividends_year))}
+    ${row("Shares bought back", f.buybacks_year == null ? null : money(f.buybacks_year))}
+    ${f.balance_date ? `<span class="dim" style="font-size:12px;margin-top:4px">Balance sheet, ${fdate(f.balance_date)}</span>` : ""}
+    ${row("Cash", f.cash == null ? null : money(f.cash), f.cash_share == null ? "" : ` <span class="dim" style="font-weight:400">${pct(f.cash_share, 0, false)} of assets</span>`)}
+    ${row("Liabilities", f.liabilities == null ? null : money(f.liabilities), f.liabilities_share == null ? "" : ` <span class="dim" style="font-weight:400">${pct(f.liabilities_share, 0, false)} of assets</span>`)}
+    ${row("Share count vs a year ago", sc)}
+    <span class="dim" style="font-size:11px">First-reported figures from SEC filings. Context, not a signal: in the 2026 tests none of these figures predicted returns for S&amp;P 500 stocks after costs.</span></section>`;
+}
+function testedCard(list) {
+  if (!list || !list.length) return "";
+  return `<section style="display:flex;flex-direction:column;gap:8px"><h2>Tested and rejected <span class="dim" style="font-weight:400">(2026 studies, S&amp;P 500 members at the time)</span></h2>
+    ${list.map(x => `<div class="mini"><b style="font-size:13px;color:var(--ink)">${esc(x.study)} <span class="dim" style="font-weight:400">· ${x.tests} tests · ${esc(x.period)}</span></b>
+      <span class="dim" style="font-size:12px">${esc(x.result)}</span></div>`).join("")}
+    <span class="dim" style="font-size:11px">Each idea was tested after costs, over two separate periods, against luck (random signals), and only on companies while they were in the index. Not worth retesting without new data or a new reason.</span></section>`;
+}
+function forwardCard(f) {
+  if (!f) return "";
+  if (!f.registered) return `<div class="mini"><b style="font-size:13px">Forward test</b><span class="dim" style="font-size:12px">${esc(f.note || "")}</span></div>`;
+  const stats = f.months ? `<div class="row"><span>Average month vs the average stock</span><b>${pct(f.mean_excess, 2)}</b></div>
+      <div class="row"><span>Cumulative vs the average stock</span><b>${pct(f.cumulative_excess, 1)}</b></div>
+      <div class="row"><span>Months it beat the average stock</span><b>${Math.round((f.beat_share || 0) * f.months)} of ${f.months}</b></div>
+      ${f.t != null ? `<div class="row"><span>How far from luck (t)</span><b>${f.t.toFixed(1)}</b></div>` : ""}` : `<span class="dim" style="font-size:12px">No completed month yet.</span>`;
+  return `<section class="card"><b style="font-size:15px;color:var(--ink)">Forward test (paper only)</b>
+    <span class="dim" style="font-size:12px">Registered ${fdate(f.since)}: a fixed blend of ${f.computed} features from the idea factory's best discovery ideas, top 10% of S&amp;P 500 members each month, after costs. ${esc(f.status || "")}</span>
+    ${stats}
+    ${(f.picks_now || []).length ? `<details><summary class="dim" style="cursor:pointer">This month's paper picks (${f.picks_now.length}, formed ${fdate(f.picks_formed)})</summary><span class="dim" style="font-size:12px">${esc(f.picks_now.join(", "))}</span></details>` : ""}
+    <span class="dim" style="font-size:11px">A record kept to test a hypothesis, not a recommendation: these ideas did not pass the holdout individually.</span></section>`;
 }
 function assetBuyCard(t) {
   const c = (S.summary.market || {}).criteria || {}, m = t.metrics || {}, ev = t.risk_evidence;
@@ -375,6 +451,8 @@ function renderAsset(t, opts = {}) {
         <div class="row"><span>Rose within 12 months</span><b>${pct(ev.rose, 0, false)} <span class="dim" style="font-weight:400">vs ${pct(ev.rose_other, 0, false)} otherwise</span></b></div></div>` : ""}
     </section></div>
     ${linkCard(t)}
+    ${earningsCard(t)}
+    ${financialsCard(t)}
     ${assetBuyCard(t)}
     ${explainBox("asset_" + t.symbol, t.symbol === "^NDX"
       ? "Explain the Nasdaq 100 view in plain English: how it differs from the S&P 500, what each layer and horizon means, and what history says about buying now."

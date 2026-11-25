@@ -247,7 +247,11 @@ def load_universe(store: Path) -> list[dict]:
     try:
         for url in ("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies", "https://en.wikipedia.org/wiki/Nasdaq-100"):
             for m in wiki_members(url):
+                if "S%26P_500" in url:
+                    m["sp500"] = True
                 members.setdefault(m["s"], m)
+                if m.get("sp500"):
+                    members[m["s"]]["sp500"] = True
                 if not members[m["s"]].get("sector") and m.get("sector"):
                     members[m["s"]].update({k: m[k] for k in ("sector", "sub")})
         if len(members) > 300:
@@ -517,6 +521,7 @@ def ticker_view(item: dict, prices: pd.DataFrame, spx: pd.Series, fund: dict, ec
                + ("Longer term, the business decides." if kind == "stock" else "Over years, valuation matters most."))
     return {"symbol": s, "name": item.get("n") or s, "kind": kind, "sector": item.get("sector"), "sector_etf": etf,
             "metrics": m, "sector_metrics": sector_m, "fundamentals": f, "market_link": link, "evidence": evidence_badge(kind, m),
+            "earnings": (ctx or {}).get("earn", {}).get(s), "financials": (ctx or {}).get("fin", {}).get(s),
             "layers": layers, "headline": head[0],
             "headline_tone": head[1], "horizons": horizons, "flips": flips, "risk_evidence": ev, "reading": reading}
 
@@ -595,9 +600,32 @@ def build(store: Path, out: Path, skip_network: bool = False) -> dict:
     for h in health:
         print(f"::warning::Missing in this run: {h}")
 
+    stocks = [u["s"] for u in universe if u.get("k") == "stock"]
+    earn, fin, fwd, tested = {}, {}, None, None
+    try:
+        import company
+        import composite
+        import earnings as ea_mod
+        tested = company.TESTED_REJECTED
+        budget = 0 if skip_network else float(os.environ.get("COMPANY_BUDGET_S", "600"))
+        earn = company.earnings_block(store, stocks, prices, spx, budget_s=budget)
+        fin = company.financials_block(store, stocks, budget_s=budget)
+        print(f"  earnings for {len(earn)} stocks, financials for {sum(1 for v in fin.values() if 'unavailable' not in v)}")
+        sp = [u["s"] for u in universe if u.get("sp500")]
+        if len(sp) < 300:
+            mem = ea_mod.load_membership(ROOT / "config" / "sp500_membership.csv")
+            sp = sorted(set(stocks) & set(mem[mem.end > pd.Timestamp.today()].ticker)) if mem is not None else stocks
+        facts = company.load_facts(store, sp, budget_s=0)
+        ann = ea_mod.announcements(store, sp, budget_s=0)
+        ev = ea_mod.classify(ann, prices.index) if len(ann) else None
+        fwd = composite.forward_test(store, prices, sp, facts, ev)
+    except Exception as err:
+        print(f"  company data unavailable ({err.__class__.__name__}: {err})")
+    market["forward_test"] = fwd
+    market["tested_rejected"] = tested
     S, spx_m = build_signals(P)
     ma10 = spx_m.rolling(10).mean()
-    ctx = {"broken": (spx_m < ma10).astype(float).where(ma10.notna()),
+    ctx = {"earn": earn, "fin": fin, "broken": (spx_m < ma10).astype(float).where(ma10.notna()),
            "vix": S["Volatility stress (VIX 30+ at month-end)"][0] if "Volatility stress (VIX 30+ at month-end)" in S else None}
     on_def = [d["signal"] for d in crit.get("defensive", []) if d.get("now")]
     flag = pd.concat([S[n][0] for n in on_def if n in S], axis=1).min(axis=1) if on_def else None

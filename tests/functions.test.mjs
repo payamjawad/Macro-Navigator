@@ -37,7 +37,7 @@ test("Gemini answer: invented number is flagged, real ones pass, ticker looked u
   globalThis.fetch = async (url, init) => { sent = JSON.parse(init.body);
     return new Response(JSON.stringify({candidates: [{content: {parts: [{text: "NVDA moves about 1.8× the market. Gains followed 63% of the time vs 72%. Odds are 69%. It could hit 412.5 soon."}]}}]})); };
   const d = await (await chat({request: req(ask("How does NVDA look?")), env: env({GEMINI_API_KEY: "k"})})).json();
-  assert.match(d.model, /Gemini \(gemini-2.5-flash\)/);
+  assert.match(d.model, /Gemini \(gemini-3.5-flash-lite\)/);
   assert.ok(d.looked.some(x => x.startsWith("NVDA")));
   assert.deepEqual(d.check.unmatched, ["412.5"]);
   assert.equal(d.check.total, 5);
@@ -45,16 +45,28 @@ test("Gemini answer: invented number is flagged, real ones pass, ticker looked u
   assert.ok(d.sources.some(s => s.href === "#stock/NVDA"));
 });
 
-test("retries without thinking control, then falls back on quota errors", async () => {
-  let calls = 0;
-  globalThis.fetch = async (url, init) => { calls++; const b = JSON.parse(init.body);
-    if (b.generationConfig.thinkingConfig) return new Response("thinking is not supported", {status: 400});
-    return new Response(JSON.stringify({candidates: [{content: {parts: [{text: "Stance is High risk."}]}}]})); };
+test("retries without thinking control, moves to the next model on quota or retired models", async () => {
+  let calls = [];
+  globalThis.fetch = async (url, init) => { const b = JSON.parse(init.body); calls.push(url.split("/models/")[1].split(":")[0] + (b.generationConfig.thinkingConfig ? "+t" : ""));
+    assert.equal(b.generationConfig.temperature, undefined);
+    if (b.generationConfig.thinkingConfig) return new Response("thinking_level is not supported", {status: 400});
+    return new Response(JSON.stringify({candidates: [{content: {parts: [{text: "thinking...", thought: true}, {text: "Stance is High risk."}]}}]})); };
   let d = await (await chat({request: req(ask("stance?")), env: env({GEMINI_API_KEY: "k"})})).json();
-  assert.equal(calls, 2); assert.equal(d.text, "Stance is High risk.");
+  assert.deepEqual(calls, ["gemini-3.5-flash-lite+t", "gemini-3.5-flash-lite"]); assert.equal(d.text, "Stance is High risk.");
+  calls = [];
+  globalThis.fetch = async (url, init) => { const m = url.split("/models/")[1].split(":")[0]; calls.push(m);
+    if (m === "gemini-3.5-flash-lite") return new Response("quota", {status: 429});
+    return new Response(JSON.stringify({candidates: [{content: {parts: [{text: "From the backup lite model."}]}}]})); };
+  d = await (await chat({request: req(ask("stance?")), env: env({GEMINI_API_KEY: "k"})})).json();
+  assert.deepEqual(calls, ["gemini-3.5-flash-lite", "gemini-2.5-flash-lite"]);
+  assert.ok(!calls.includes("gemini-3.1-flash-lite") && !calls.includes("gemini-3.5-flash"));
+  assert.match(d.model, /gemini-2.5-flash-lite/);
+  calls = [];
+  d = await (await chat({request: req(ask("stance?")), env: env({GEMINI_API_KEY: "k", GEMINI_MODELS: "my-model"})})).json();
+  assert.deepEqual(calls, ["my-model"]);
   globalThis.fetch = async () => new Response("quota", {status: 429});
   d = await (await chat({request: req(ask("stance?")), env: env({GEMINI_API_KEY: "k"})})).json();
-  assert.match(d.model, /free quota/); assert.match(d.text, /High risk/);
+  assert.match(d.model, /allowance for these models is used up/); assert.match(d.text, /High risk/);
 });
 
 test("ticker detection", () => {
@@ -91,4 +103,47 @@ test("refresh and watchlist call GitHub", async () => {
 test("index names are not treated as numbers", () => {
   const c = numberCheck("The S&P 500 and Nasdaq 100 fell; the Nasdaq-100 lagged by 63%.", {a: 0.63});
   assert.equal(c.total, 1); assert.deepEqual(c.unmatched, []);
+});
+
+import {onRequestGet as quote, metrics as qmetrics} from "../site/functions/api/quote.js";
+
+function fakeChart(sym, n = 500, drift = 0.0004, beta = 1.5) {
+  const t0 = 1700000000, ts = [], cl = [];
+  let p = 100, m = 100;
+  for (let i = 0; i < n; i++) {
+    const mr = Math.sin(i * 0.7) * 0.01 + 0.0003;
+    m *= 1 + mr; p *= 1 + beta * mr + drift * (sym === "^GSPC" ? 0 : -3);
+    ts.push(t0 + i * 86400); cl.push(sym === "^GSPC" ? m : p);
+  }
+  return {chart: {result: [{meta: {symbol: sym, longName: sym === "^GSPC" ? "S&P 500" : "Zeta Corp"}, timestamp: ts,
+    indicators: {quote: [{close: cl}], adjclose: [{adjclose: cl}]}}], error: null}};
+}
+
+test("live quote: builds a price-based view for an unlisted ticker", async () => {
+  globalThis.fetch = async url => {
+    const sym = decodeURIComponent(url.split("/chart/")[1].split("?")[0]);
+    if (sym === "NOPE") return new Response(JSON.stringify({chart: {result: null, error: {code: "Not Found"}}}), {status: 404});
+    return new Response(JSON.stringify(fakeChart(sym)));
+  };
+  const r = await quote({request: new Request("https://mn.pages.dev/api/quote?s=zeta"), env: env()});
+  const v = await r.json();
+  assert.equal(v.symbol, "ZETA"); assert.equal(v.name, "Zeta Corp"); assert.equal(v.live, true);
+  assert.equal(v.layers.length, 4); assert.ok(v.metrics.beta > 1.2 && v.metrics.beta < 1.8, `beta ${v.metrics.beta}`);
+  assert.equal(v.layers[1].tone, "bad");                     // market layer from summary: High risk
+  const miss = await quote({request: new Request("https://mn.pages.dev/api/quote?s=NOPE"), env: env()});
+  assert.equal(miss.status, 404);
+  const bad = await quote({request: new Request("https://mn.pages.dev/api/quote?s=%3Cscript%3E"), env: env()});
+  assert.equal(bad.status, 400);
+});
+
+test("chat uses a live-looked-up asset sent by the app", async () => {
+  let sent;
+  globalThis.fetch = async (url, init) => { sent = JSON.parse(init.body);
+    return new Response(JSON.stringify({candidates: [{content: {parts: [{text: "ZETA moves about 1.5× the market."}]}}]})); };
+  const asset = {symbol: "ZETA", name: "Zeta Corp", kind: "stock", layers: [], horizons: [], flips: [], metrics: {beta: 1.5}, reading: "r"};
+  const d = await (await chat({request: req({messages: [{role: "user", text: "Explain the ZETA view"}], symbol: "ZETA", asset}),
+    env: env({GEMINI_API_KEY: "k"})})).json();
+  assert.ok(d.looked.includes("ZETA live prices"));
+  assert.match(sent.systemInstruction.parts[0].text, /"symbol":"ZETA"/);
+  assert.deepEqual(d.check.unmatched, []);
 });

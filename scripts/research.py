@@ -147,8 +147,9 @@ ETFS = {"SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLV", "XLY", "XLP", "XLE", "X
 
 
 def pooled_transfer(store: Path, P: pd.DataFrame, rng) -> list:
-    """Does the S&P 500's trend state predict single stocks? Pooled across every stock in the daily list.
-    Note: today's members only (survivorship), which lifts both states alike; the test compares the states."""
+    """Does the S&P 500's trend state predict single stocks? Pooled across stocks, each counted only while it was in
+    the S&P 500 (config/sp500_membership.csv, point in time). Former members without prices are still missing, so the
+    survivorship fix is partial."""
     import fetch_all as fa
     up = fa.load(store / "universe_prices")
     if up is None or up.empty:
@@ -161,9 +162,24 @@ def pooled_transfer(store: Path, P: pd.DataFrame, rng) -> list:
     state = (spx < ma).astype(float).where(ma.notna())
     M = up[stocks].resample("ME").last().reindex(P.index)
     idx = P.index
+    member = None
+    try:
+        import earnings as ea
+        import stocksignals as ss
+        mem = ea.load_membership(Path(__file__).resolve().parent.parent / "config" / "sp500_membership.csv")
+        if mem is not None:
+            member = ss.membership_matrix(mem, M.index, stocks)
+    except Exception:
+        member = None
+    if member is not None and int(member.any(axis=0).sum()) < 30:
+        member = None                                                     # membership file does not cover this list
+    n_used = int(member.any(axis=0).sum()) if member is not None else len(stocks)
     out = []
     for h in (3, 12):
-        F = (M.shift(-h) / M - 1).values
+        Fd = M.shift(-h) / M - 1
+        if member is not None:
+            Fd = Fd.where(member)                                         # only months when the company was a member
+        F = Fd.values
         Y = np.where(np.isnan(F), np.nan, (F > 0).astype(float))
         nups, nvalid = np.nansum(Y, axis=1), np.sum(~np.isnan(Y), axis=1)
 
@@ -197,7 +213,8 @@ def pooled_transfer(store: Path, P: pd.DataFrame, rng) -> list:
         verdict = ("Too little data" if l is None else "Fails" if l <= 0 else
                    "Solid" if (e is not None and e > 0 and p95 is not None and l > p95) else "Not proven")
         out.append({"signal": "S&P trend rule applied to single stocks (pooled)", "horizon": h,
-                    "reference": f"{len(stocks)} stocks; Faber 2007 applied via the market", "early_skill": e, "late_skill": l,
+                    "reference": (f"{n_used} stocks, each counted only while in the S&P 500" if member is not None else f"{len(stocks)} stocks (today's members)")
+                                 + "; Faber 2007 applied via the market", "early_skill": e, "late_skill": l,
                     "placebo_p95": p95, "verdict": verdict, "early": "1995–2009", "late": f"2010–{idx[-1].year}"})
     return out
 

@@ -106,6 +106,8 @@ def fake_get(self, url, params=None, timeout=None, **kw):
         return Resp(text=json.dumps({"observations": fred_obs(sid, params.get("observation_start"))}), ctype="application/json")
     if url == fa.FRED_CSV:
         sid = params["id"]
+        if sid == "TEDRATE":
+            return Resp(404, text="series not found")
         obs = fred_obs(sid, params.get("cosd"))
         csv = "observation_date," + sid + "\n" + "\n".join(f"{o['date']},{o['value']}" for o in obs)
         return Resp(text=csv)
@@ -326,6 +328,54 @@ def test_site_stock_view_with_fundamentals(store, tmp_path, monkeypatch):
     build_site.main(["--store", str(store), "--out", str(out)])
     t = json.loads((out / "public" / "data" / "tickers" / "TEST.json").read_text())
     names = [l["name"] for l in t["layers"]]
-    assert len(t["layers"]) == 5 and names[2].startswith("Sector") and names[4].startswith("Fundamentals")
-    assert t["layers"][4]["tone"] == "good" and t["sector_etf"] == "XLE"
+    assert len(t["layers"]) == 5 and names[2].startswith("Sector") and names[4].startswith("Market link")
+    assert t["fundamentals"]["growth"] == 0.25 and t["sector_etf"] == "XLE"
+    assert t["evidence"]["level"] in ("High", "Medium", "Low") and t["market_link"]["by_trend"]["intact"]
     assert t["metrics"]["beta"] is not None and t["headline"]
+
+
+
+def test_rejected_fred_key_falls_back_to_public_csv(store, monkeypatch):
+    import requests
+    def rejecting_get(self, url, params=None, timeout=None, **kw):
+        if url == fa.FRED_API:
+            return Resp(400, text=json.dumps({"error_message": "Bad Request. The value for variable api_key is not registered."}),
+                        ctype="application/json")
+        return fake_get(self, url, params, timeout, **kw)
+    monkeypatch.setattr(requests.Session, "get", rejecting_get)
+    monkeypatch.setenv("FRED_API_KEY", "  wrong-key\n")
+    fa.main(["--out", str(store), "--inprocess"])
+    cat = pd.read_csv(store / "catalog.csv")
+    fred = cat[cat.source == "fred"]
+    assert (fred.status.str.startswith("ok")).sum() >= len(fa.FRED) - 1
+    assert fred.status.str.contains("via public CSV").any()
+
+
+def test_yahoo_retries_tickers_missing_from_the_batch(store, monkeypatch):
+    import yfinance
+    def flaky(tickers, period=None, start=None, **kw):
+        if not isinstance(tickers, str):                      # batch call: Yahoo throttles ^GSPC
+            tickers = [t for t in tickers if t != "^GSPC"]
+        return fake_download(tickers, period=period, start=start, **kw)
+    monkeypatch.setattr(yfinance, "download", flaky)
+    fa.main(["--out", str(store), "--inprocess"])
+    px = fa.load(store / "yahoo_prices")
+    assert "^GSPC" in px.columns and px["^GSPC"].notna().sum() > 1000
+
+
+def test_trend_rule_and_research_lab_reach_the_app(store, tmp_path):
+    import build_site
+    import research
+    _run_pipeline(store)
+    res = json.loads((store / "engine_results.json").read_text())
+    tr = res["trend_rule"]
+    assert tr["periods"] and {"rule", "buy_hold", "out_share"} <= set(tr["periods"][0]) and "in_stocks" in tr["now"]
+    assert "inflation_check" in res["criteria"]
+    lab = research.run_if_stale(store, force=True)
+    names = {r["signal"] for r in lab["results"]}
+    assert "Trend: S&P below its 10-month average" in names and len(lab["results"]) >= 16
+    assert all(r["verdict"] in ("Solid", "Not proven", "Fails", "Too little data") for r in lab["results"])
+    out = tmp_path / "deploy"
+    build_site.main(["--store", str(store), "--out", str(out), "--offline"])
+    s = json.loads((out / "public" / "data" / "summary.json").read_text())
+    assert s["market"]["research"]["results"] and s["market"]["trend_rule"]["now"]

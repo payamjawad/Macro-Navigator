@@ -51,6 +51,12 @@ switched off until this is done, so nobody else can use your Gemini key.
 ### 6. On your phone
 Open the address in Safari, log in with the emailed code, then **Share → Add to Home Screen**.
 
+### Stock pages: earnings and company financials
+Each stock page shows an Earnings card (SEC results dates, typical results-day move, estimated next date) and a Company
+financials card (first-reported SEC figures). Both are information, not signals: see "Tested and rejected" on the
+S&P 500 tab. The first run after this update downloads SEC filings once (about 10-15 minutes extra); later runs refresh
+a slice each day.
+
 ### Using it
 - **One tap** opens the latest run. Data refreshes by itself every weekday at 22:30 UTC (after the US close).
 - **Refresh** starts a new run; new data in about 5–8 minutes.

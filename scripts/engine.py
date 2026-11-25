@@ -263,20 +263,25 @@ def pct(x, d=1, sign=True):
     return f"{x * 100:+.{d}f}%" if sign else f"{x * 100:.{d}f}%"
 
 
+SWITCH_COST = 0.001                                              # 0.10% each time the rule moves in or out
+
+
 def trend_rule(spx: pd.Series, P: pd.DataFrame) -> dict:
-    """Faber-style rule: hold the S&P 500 while its month-end close is at or above its 10-month average, else T-bills."""
+    """Faber-style rule: hold the S&P 500 while its month-end close is at or above its 10-month average, else T-bills.
+    Results are after 0.10% per switch; a decade table shows whether the edge is holding up."""
     px = spx.dropna()
     ma = px.rolling(10).mean()
     tb = latest(P, "fred:TB3MS").reindex(px.index).ffill() / 1200
     r = px.pct_change().shift(-1)                                   # next month's return
     inn = (px >= ma).astype(float).where(ma.notna())
-    out = {"periods": []}
+    switch = (inn != inn.shift(1)) & inn.notna() & inn.shift(1).notna()
+    out = {"periods": [], "cost_per_switch": SWITCH_COST}
     for a, b in (("1950-01-31", "1989-12-31"), ("1990-01-31", str(px.index[-1].date()))):
         m = (px.index >= a) & (px.index <= b) & r.notna() & inn.notna() & tb.notna()
         if m.sum() < 60:
             continue
         rr, cash, on = r[m].values, tb[m].values, inn[m].values == 1
-        strat = np.where(on, rr, cash)
+        strat = np.where(on, rr, cash) - np.where(switch[m].values, SWITCH_COST, 0.0)
 
         def stats(x):
             cagr = float(np.prod(1 + x) ** (12 / len(x)) - 1)
@@ -284,7 +289,20 @@ def trend_rule(spx: pd.Series, P: pd.DataFrame) -> dict:
             curve = np.cumprod(1 + x)
             return {"cagr": cagr, "sharpe": sharpe, "maxdd": float((curve / np.maximum.accumulate(curve) - 1).min())}
         out["periods"].append({"period": f"{pd.Timestamp(a).year}–{pd.Timestamp(b).year}", "rule": stats(strat), "buy_hold": stats(rr),
-                               "out_share": float(1 - on.mean())})
+                               "out_share": float(1 - on.mean()), "switches_per_year": float(switch[m].sum() / (m.sum() / 12))})
+    decades = []
+    for start in range(1950, px.index[-1].year + 1, 10):
+        m = (px.index.year >= start) & (px.index.year < start + 10) & r.notna() & inn.notna() & tb.notna()
+        if m.sum() < 24:
+            continue
+        rr, cash, on = r[m].values, tb[m].values, inn[m].values == 1
+        strat = np.where(on, rr, cash) - np.where(switch[m].values, SWITCH_COST, 0.0)
+        cr, cb = np.cumprod(1 + strat), np.cumprod(1 + rr)
+        decades.append({"decade": f"{start}s", "months": int(m.sum()),
+                        "rule_cagr": float(cr[-1] ** (12 / len(strat)) - 1), "bh_cagr": float(cb[-1] ** (12 / len(rr)) - 1),
+                        "rule_maxdd": float((cr / np.maximum.accumulate(cr) - 1).min()), "bh_maxdd": float((cb / np.maximum.accumulate(cb) - 1).min()),
+                        "out_share": float(1 - on.mean()), "switches": int(switch[m].sum())})
+    out["decades"] = decades
     if len(ma.dropna()):
         out["now"] = {"in_stocks": bool(px.iloc[-1] >= ma.iloc[-1]), "price": float(px.iloc[-1]), "average": float(ma.iloc[-1]),
                       "gap": float(px.iloc[-1] / ma.iloc[-1] - 1), "month": px.index[-1].strftime("%b %Y")}
@@ -341,7 +359,11 @@ def trigger_context(S: dict, spx: pd.Series, P: pd.DataFrame) -> dict:
                 by_infl[key] = {"n": len(g), "avg12": float(np.mean([r["next12"] for r in g])),
                                 "rose": float(np.mean([r["next12"] > 0 for r in g])),
                                 "dip": float(np.mean([r["dip"] for r in g if r["dip"] is not None])) if any(r["dip"] is not None for r in g) else None}
-        out[name] = {"episodes": rows, "groups": groups, "by_inflation": by_infl}
+        # normal months over the same span, so a conditional number can be read against what usually happens
+        span = fwd12[(fwd12.index >= f.dropna().index.min()) & fwd12.notna()] if f.notna().any() else fwd12.iloc[:0]
+        baseline = {"months": int(len(span)), "rose": float((span > 0).mean()), "avg12": float(span.mean()),
+                    "since": span.index.min().strftime("%Y")} if len(span) else None
+        out[name] = {"episodes": rows, "groups": groups, "by_inflation": by_infl, "baseline": baseline}
     now = det.dropna()
     return {"rule": "Deteriorating = Sahm indicator at 0.50 or more, or unemployment up 0.5 points or more over 6 months",
             "triggers": out,

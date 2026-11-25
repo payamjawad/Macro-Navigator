@@ -1,0 +1,2 @@
+sp500_membership.csv is sp500_ticker_start_end.csv from https://github.com/fja05680/sp500 (S&P 500 historical
+components), MIT License, Copyright (c) 2019-2020 Farrell J. Aultman. Used for point-in-time membership in tests.

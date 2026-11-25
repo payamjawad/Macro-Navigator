@@ -51,6 +51,9 @@ export function compact(summary, assets) {
       odds_higher_in_12m: {probability: call.prob_up_12m, base_rate: call.base_rate, basis: call.basis, confidence: call.confidence},
       similar_past_months: {count: a.n, avg_next_12m: a.mean, share_positive: a.up, p10: a.p10, p90: a.p90,
         closest: (a.episodes || []).map(x => ({month: x.closest, next_12m: x.next12}))},
+      ideas_tested_and_rejected: m.tested_rejected || null,
+      forward_test_paper_only: m.forward_test ? {registered: m.forward_test.registered, since: m.forward_test.since, months: m.forward_test.months,
+        mean_excess: m.forward_test.mean_excess, t: m.forward_test.t, status: m.forward_test.status} : null,
       trend_rule_the_proven_edge: m.trend_rule ? {now: m.trend_rule.now, track_record: m.trend_rule.periods} : null,
       inflation_check: c.inflation_check,
       research_lab_verdicts: (m.research?.results || []).map(r => ({signal: r.signal, horizon_months: r.horizon, verdict: r.verdict,
@@ -62,7 +65,10 @@ export function compact(summary, assets) {
     assets: assets.map(t => ({symbol: t.symbol, name: t.name, kind: t.kind, sector: t.sector, headline: t.headline,
       layers: (t.layers || []).map(l => `${l.name}: ${l.text} [${({good: "tailwind", bad: "headwind", warn: "mixed"})[l.tone] || "n/a"}]`),
       horizons: t.horizons, metrics: t.metrics, evidence_strength: t.evidence, behaviour_in_sp500_situations: t.market_link,
-      company_figures_not_tested: t.fundamentals, risk_evidence_in_months_like_now: t.risk_evidence,
+      company_figures_not_a_signal: t.financials || t.fundamentals,
+      earnings_info_not_a_signal: t.earnings ? {next: t.earnings.next, typical_move: t.earnings.typical_move, up_share: t.earnings.up_share,
+        recent: (t.earnings.recent || []).slice(0, 4), note: t.earnings.note} : null,
+      risk_evidence_in_months_like_now: t.risk_evidence,
       what_would_flip_it: (t.flips || []).map(f => `${f.name}: ${f.text}`), reading: t.reading})),
   };
 }
