@@ -105,7 +105,7 @@ const pct = (x, d = 0, sign = true) => x == null || !isFinite(x) ? "n/a" : minus
 const TONE = {good: "#34D399", warn: "#FBBF24", bad: "#F87171", neutral: "#A3B3CA"};
 const PILL = {good: ["#6EE7B7", "#0F3A2E"], warn: ["#FCD34D", "#3A2F0F"], bad: ["#FCA5A5", "#3F1C22"], neutral: ["#B6C3D6", "#1E2B45"], blue: ["#93C5FD", "#16294D"]};
 const pill = (text, tone = "neutral") => `<span class="pill" style="color:${PILL[tone][0]};background:${PILL[tone][1]}">${esc(text)}</span>`;
-const TAGTONE = {"Proven": "good", "Research-backed": "good", "Well documented": "blue", "No model edge": "neutral", "Not modelled yet": "warn", "Model": "blue", "No signal": "neutral"};
+const TAGTONE = {"Proven": "good", "Research-backed": "good", "Well documented": "blue", "No model edge": "neutral", "No proven edge": "neutral", "Not modelled yet": "warn", "Model": "blue", "No signal": "neutral"};
 const S = {summary: null, universe: [], bySym: {}, chat: []};
 try { S.chat = JSON.parse(localStorage.getItem("mn_chat") || "[]"); } catch (e) { S.chat = []; }
 
@@ -179,11 +179,13 @@ function renderMarket() {
   const val = (m.drivers || []).find(d => d.name === "Valuation");
   const capeOn = val ? val.on : defOn.some(d => /CAPE/.test(d.signal));
   const baseRate = /base rate/.test(call.basis || "");
+  const tnow = (m.trend_rule || {}).now;
   const horizons = [
-    recOn.length ? {h: "1–3 months", text: "Better than usual", tone: "good", tag: "Proven"}
+    tnow ? (tnow.in_stocks ? {h: "1–3 months", text: "Supportive: trend intact", tone: "good", tag: "Proven"}
+                           : {h: "1–3 months", text: "Defensive: trend broken", tone: "bad", tag: "Proven"})
       : (defOn.length || shortOn.length) ? {h: "1–3 months", text: "Bumpier than usual", tone: "bad", tag: "Proven"}
       : {h: "1–3 months", text: "Normal", tone: "neutral", tag: "No signal"},
-    baseRate ? {h: "6–12 months", text: "Normal odds, " + Math.round((call.base_rate || 0) * 100) + "%", tone: "neutral", tag: "No model edge"}
+    baseRate ? {h: "6–12 months", text: "Normal odds, " + Math.round((call.base_rate || 0) * 100) + "%", tone: "neutral", tag: "No proven edge"}
       : {h: "6–12 months", text: Math.round((call.prob_up_12m || 0) * 100) + "% chance higher", tone: "neutral", tag: "Model"},
     capeOn ? {h: "3–5 years", text: "Below-average returns", tone: "bad", tag: capeProven ? "Proven" : "Research-backed"}
       : {h: "3–5 years", text: "Valuation not stretched", tone: "good", tag: capeProven ? "Proven" : "Research-backed"},
@@ -209,24 +211,77 @@ function renderMarket() {
       ${m.drivers.map(d => `<div style="font-size:14px;line-height:1.45"><b style="color:${d.on ? TONE.bad : TONE.good}">${esc(d.name)}:</b> ${esc(d.text)}</div>`).join("")}
       <p class="p" style="font-size:13px">${esc(m.economy_link || "")}</p></section>` : ""}
     ${horizonCards(horizons)}
-    ${buyCard(c, combo, since80)}
+    ${buyCard(c, combo, since80, m.trend_rule)}
+    ${trendCard(m.trend_rule)}
     <div class="wide2"><section style="display:flex;flex-direction:column;gap:8px"><h2>Why: signals on now</h2>
       ${defOn.map(sig).join("") || `<div class="mini"><span class="p">No defensive signal is on.</span></div>`}
       ${recOn.map(sig).join("")}
       ${combo ? `<div class="mini"><b style="font-size:14px">Together: ${combo.eps} past episodes</b><span class="p" style="font-size:13px">Next 12 months averaged ${pct(combo.on_mean, 1)} vs ${pct(combo.off_mean, 1)} otherwise${since80.length ? `. Since 1980, ${since80.filter(x => x.next12 > 0).length} of ${since80.length} were followed by gains` : ""}.</span></div>` : ""}
     </section>
-    <section style="display:flex;flex-direction:column;gap:8px"><h2>Re-entry triggers to watch</h2>${trig}
+    <section style="display:flex;flex-direction:column;gap:8px"><h2>Re-entry triggers to watch</h2>${trig}${contextCard(m.trigger_context)}
       <div class="mini"><b style="font-size:14px">Most similar past periods</b>
         ${(a.episodes || []).map(x => `<div class="row"><span>${esc(x.closest)}</span><b style="color:${x.next12 > 0.03 ? TONE.good : x.next12 < -0.03 ? TONE.bad : "var(--ink)"}">${pct(x.next12, 1)}</b></div>`).join("")}
         <span class="dim" style="line-height:1.45">Next-12-month outcome after each. Similar months averaged ${pct(a.mean, 1)}, positive ${pct(a.up, 0, false)} of the time.</span></div>
       <div class="mini"><b style="font-size:14px">Model track record</b><span class="p" style="font-size:13px">${usable.length ? "Usable out of sample: " + esc(usable.join(", ")) : "No model has a proven 12-month edge out of sample since 1975, so odds shown are the historical base rate."}</span></div>
     </section></div>
+    ${labCard(m.research)}
     ${explainBox("sp500", "Explain the S&P 500 view in plain English: what drives the stance, what each horizon means, and what history says about buying now.", "")}
     <section class="reading"><span style="font-size:12px;color:#93C5FD">The reading</span><p>${esc(reading)}</p></section>`;
 }
 
-function buyCard(c, combo, since80) {
+const fmtSkill = x => x == null ? "n/a" : minus((x > 0 ? "+" : "") + (x * 100).toFixed(1) + "%");
+function trendCard(t) {
+  if (!t || !(t.periods || []).length) return "";
+  const n = t.now, f0 = x => x == null ? "n/a" : x.toLocaleString(undefined, {maximumFractionDigits: 0});
+  const sh = x => x == null ? "n/a" : x.toFixed(2);
+  const rows = t.periods.map(p => `<div class="row"><span>${esc(p.period)}</span><b>${pct(p.rule.cagr, 1, false)} · ${sh(p.rule.sharpe)} · ${pct(p.rule.maxdd, 0)}
+      <span class="dim" style="font-weight:400">vs ${pct(p.buy_hold.cagr, 1, false)} · ${sh(p.buy_hold.sharpe)} · ${pct(p.buy_hold.maxdd, 0)}</span></b></div>`).join("");
+  return `<section class="card"><span class="dim">The proven edge: the trend rule</span>
+    <p class="p" style="font-size:13px">Hold the S&amp;P 500 while it closes a month at or above its 10-month average; otherwise hold T-bills. On data never used to design it, this kept returns similar and roughly halved the worst falls.</p>
+    ${n ? `<div class="row"><span>Now (${esc(n.month)})</span><b style="color:${n.in_stocks ? TONE.good : TONE.bad}">${n.in_stocks ? "In stocks" : "Out of stocks"}: ${f0(n.price)} vs ${f0(n.average)} (${pct(n.gap, 1)})</b></div>` : ""}
+    <span class="dim" style="font-size:12px">Rule vs buy and hold: annual return · Sharpe · worst fall</span>${rows}
+    <span class="dim" style="font-size:11px">Judged on month-end closes; a break during the month counts only if it holds at the close. Price returns, no trading costs or taxes.</span></section>`;
+}
+function labCard(lab) {
+  if (!lab || !(lab.results || []).length) return "";
+  const VT = {"Solid": "good", "Not proven": "warn", "Fails": "bad", "Too little data": "neutral"};
+  const by = {};
+  lab.results.forEach(r => { (by[r.signal] = by[r.signal] || {})[r.horizon] = r; });
+  const rows = Object.entries(by).map(([name, hs]) => {
+    const a = hs[3], b = hs[12], one = a || b;
+    const w = a && a.late_when_on ? ` · 3m when on: rose ${pct(a.late_when_on.rose_on, 0, false)} vs ${pct(a.late_when_on.rose_off, 0, false)}` : "";
+    return `<div class="mini" style="gap:6px"><div class="row" style="align-items:center"><b style="font-size:13px;color:var(--ink)">${esc(name)}</b>
+        <span style="display:flex;gap:6px;flex:none">${a ? pill("3m " + a.verdict, VT[a.verdict] || "neutral") : ""}${b ? pill("12m " + b.verdict, VT[b.verdict] || "neutral") : ""}</span></div>
+      <span class="dim" style="font-size:11px">3m skill ${esc(one.early)} ${fmtSkill(a && a.early_skill)} · ${esc(one.late)} ${fmtSkill(a && a.late_skill)} (luck level ${fmtSkill(a && a.placebo_p95)})${w} · ${esc(one.reference)}</span></div>`;
+  }).join("");
+  return `<section style="display:flex;flex-direction:column;gap:8px"><h2>Research lab <span class="dim" style="font-weight:400">(retested weekly)</span></h2>
+    <p class="p" style="font-size:13px">${esc(lab.protocol)}</p>${rows}<span class="dim" style="font-size:11px">Last run ${esc((lab.generated || "").slice(0, 10))}.</span></section>`;
+}
+function contextCard(tc) {
+  if (!tc || !tc.triggers) return "";
+  const v = tc.triggers["Volatility stress (VIX 30+ at month-end)"];
+  if (!v || !Object.keys(v.by_inflation || v.groups || {}).length) return "";
+  const bi = v.by_inflation || {};
+  const row = (label, g) => g ? `<div class="row"><span>${label} (${g.n})</span><b>${pct(g.rose, 0, false)} rose · ${pct(g.avg12, 0)} avg · dip ${pct(g.dip, 0)}</b></div>` : "";
+  const now = tc.now || {};
+  const nowTxt = now.inflation == null ? "" : `Today inflation is <b>${pct(now.inflation, 1, false)}</b> (${now.infl_high ? "4% or more: the weaker case" : "below 4%"}); jobs are ${now.deteriorating ? "deteriorating" : "stable"}.`;
+  const eps = (v.episodes || []).filter(e => e.next12 != null).map(e => `<div class="row"><span>${esc(e.start)} · inflation ${e.infl == null ? "n/a" : pct(e.infl, 1, false)}</span><b style="color:${e.next12 > 0 ? TONE.good : TONE.bad}">${pct(e.next12, 0)} <span class="dim" style="font-weight:400">dip ${pct(e.dip, 0)}</span></b></div>`).join("");
+  return `<div class="mini"><b style="font-size:14px">Does the economy change the VIX signal?</b>
+    <span class="dim" style="line-height:1.45">After a VIX month-end close at 30 or above, by inflation at the time. Next 12 months:</span>
+    ${row("Inflation below 4%", bi.low)}${row("Inflation 4% or more", bi.high)}
+    <span class="dim" style="font-size:11px">Splitting by jobs instead made little difference: unemployment lags and stays high into recoveries.</span>
+    <span class="p" style="font-size:13px">${nowTxt}</span>
+    <details><summary class="dim" style="cursor:pointer">Every episode</summary>${eps}</details>
+    <span class="dim" style="font-size:11px">Small samples: treat as context, not proof. The 4% line was chosen after looking at the data; it holds at 5% too.</span></div>`;
+}
+function buyCard(c, combo, since80, tr) {
   const trig = (c.triggers || []).map(t => `${t.rule.toLowerCase()} (now: ${t.now})`).join("; or ");
+  const n = (tr || {}).now;
+  const lead = n ? (n.in_stocks
+      ? `The one proven short-term signal, the trend rule, is supportive: the S&P 500 is ${pct(n.gap, 1)} above its 10-month average. `
+      : `The one proven short-term signal, the trend rule, is defensive: the S&P 500 is ${pct(n.gap, 1)} below its 10-month average, which has historically meant weaker odds and deeper dips over the next 1 to 3 months. `) : "";
+  const ic = c.inflation_check || {};
+  const infl = ic.cpi == null ? "" : ic.high ? ` Inflation is ${pct(ic.cpi, 1, false)}: above 4%, re-entry signals have historically been much weaker.` : "";
   let body;
   if (c.level === "Recovery window") body = "This is one of the moments history favours: a proven re-entry signal is on, and the following 6 to 24 months have beaten the average after it.";
   else if (c.level === "High risk" || c.level === "Elevated risk") {
@@ -234,10 +289,24 @@ function buyCard(c, combo, since80) {
       + (since80.length ? `, yet since 1980 ${since80.filter(x => x.next12 > 0).length} of ${since80.length} episodes ended higher` : "") + ". " : "";
     body = `History does not say "don't buy"; it says expect a rougher ride. ${hist}These signals have been better at flagging deeper dips than at calling direction. The moments that have reliably marked better entry points: ${trig}. Spreading purchases over time lowers the risk of buying just before a deeper dip.`;
   } else body = "No proven warning or re-entry signal is on, so history points to roughly normal odds: gains in about 7 of 10 years.";
-  return `<section class="card"><span class="dim">Is now a good time to buy?</span><p class="p">${esc(body)}</p>
+  return `<section class="card"><span class="dim">Is now a good time to buy?</span><p class="p">${esc(lead + body + infl)}</p>
     <span class="dim" style="font-size:11px">What past data shows, not a recommendation.</span></section>`;
 }
 
+function linkCard(t) {
+  const L = t.market_link, ev = t.evidence, f = t.fundamentals;
+  const EVT = {High: "good", Medium: "warn", Low: "bad"};
+  const g = (k, label) => { const x = L && L.by_trend[k]; return x ? `<div class="row"><span>${label} (${x.months} months)</span><b>${pct(x.asset, 1)} <span class="dim" style="font-weight:400">a month vs S&amp;P ${pct(x.spx, 1)} · rose ${pct(x.rose, 0, false)}</span></b></div>` : ""; };
+  return `<section class="card"><div class="row" style="align-items:center"><b style="font-size:15px;color:var(--ink)">How it moves with the market</b>${ev ? pill("Evidence: " + ev.level, EVT[ev.level] || "neutral") : ""}</div>
+    ${ev ? `<p class="p" style="font-size:13px">${esc(ev.text)}</p>` : ""}
+    ${L ? `${g("broken", "S&P trend broken")}${g("intact", "S&P trend intact")}
+      ${L.capture ? `<div class="row"><span>Up months / down months caught<br><span class="dim" style="font-size:11px">above 100% = moves more than the S&amp;P</span></span><b>${Math.round(L.capture.up * 100)}% / ${Math.round(L.capture.down * 100)}%</b></div>` : ""}
+      ${L.worst_months ? `<div class="row"><span>In the S&amp;P's worst 10% of months</span><b>${pct(L.worst_months.asset, 1)} <span class="dim" style="font-weight:400">vs S&amp;P ${pct(L.worst_months.spx, 1)}</span></b></div>` : ""}
+      ${L.after_vix ? `<div class="row"><span>12 months after VIX month-end ≥ 30 (${L.after_vix.episodes})</span><b>${pct(L.after_vix.asset, 0)} <span class="dim" style="font-weight:400">vs S&amp;P ${pct(L.after_vix.spx, 0)}</span></b></div>` : ""}
+      <span class="dim" style="font-size:11px">Monthly data since ${esc(L.since)}. The S&amp;P's signals are the tested part; this shows how this asset behaved in the same situations.</span>`
+      : `<span class="dim">Not enough shared history with the S&amp;P 500 yet.</span>`}
+    ${f && f.growth != null ? `<span class="dim" style="font-size:12px">Company figures (${esc(f.period)}, SEC, not tested as a signal): revenue ${pct(f.growth, 0)} year on year${f.margin != null ? `, net margin ${pct(f.margin, 0, false)}` : ""}.</span>` : ""}</section>`;
+}
 function assetBuyCard(t) {
   const c = (S.summary.market || {}).criteria || {}, m = t.metrics || {}, ev = t.risk_evidence;
   const trig = (c.triggers || []).map(x => `${x.rule.toLowerCase()} (now: ${x.now})`).join("; or ");
@@ -246,6 +315,9 @@ function assetBuyCard(t) {
   else if (c.level === "Recovery window") parts.push("The market backdrop is a recovery window, historically one of the better times to add risk.");
   else parts.push("The market backdrop is normal, with no proven warning signal on.");
   if (ev) parts.push(`In ${ev.episodes} past episodes like now, ${t.symbol} rose within 12 months ${pct(ev.rose, 0, false)} of the time (versus ${pct(ev.rose_other, 0, false)} otherwise), and its average worst dip was ${pct(ev.dip)} against ${pct(ev.spx_dip)} for the S&P.`);
+  const L = t.market_link, st = L && L.spx_trend_broken_now != null ? L.by_trend[L.spx_trend_broken_now ? "broken" : "intact"] : null;
+  if (st) parts.push(`When the S&P's trend was ${L.spx_trend_broken_now ? "broken" : "intact"}, as now, ${t.symbol} averaged ${pct(st.asset, 1)} a month against ${pct(st.spx, 1)} for the S&P.`);
+  if (t.evidence) parts.push(t.evidence.text);
   if (m.above_200d === false) parts.push(`Its own trend is negative (below its 200-day average${m.sma200 ? ", about " + m.sma200.toLocaleString() : ""}); momentum research finds that prices below their long-term trend have tended to keep lagging in the short run.`);
   else if (m.above_200d) parts.push("Its own trend is positive (above its 200-day average), which momentum research counts in its favour short term.");
   if (m.beta != null && m.beta > 1.1) parts.push(`It moves about ${m.beta.toFixed(1)}× the market, so expect larger swings both ways.`);
@@ -302,6 +374,7 @@ function renderAsset(t, opts = {}) {
         <div class="row"><span>Average worst dip within 12 months</span><b style="color:${TONE.bad}">${pct(ev.dip)} <span class="dim" style="font-weight:400">S&amp;P ${pct(ev.spx_dip)}</span></b></div>
         <div class="row"><span>Rose within 12 months</span><b>${pct(ev.rose, 0, false)} <span class="dim" style="font-weight:400">vs ${pct(ev.rose_other, 0, false)} otherwise</span></b></div></div>` : ""}
     </section></div>
+    ${linkCard(t)}
     ${assetBuyCard(t)}
     ${explainBox("asset_" + t.symbol, t.symbol === "^NDX"
       ? "Explain the Nasdaq 100 view in plain English: how it differs from the S&P 500, what each layer and horizon means, and what history says about buying now."

@@ -382,8 +382,76 @@ def risk_evidence(asset_m: pd.Series, spx_m: pd.Series, flag: pd.Series | None) 
             "rose": fnum((on.a_fwd > 0).mean()), "rose_other": fnum((df[df.f == 0].a_fwd > 0).mean())}
 
 
+def market_link(asset_m: pd.Series, spx_m: pd.Series, broken: pd.Series, vix_flag: pd.Series | None) -> dict | None:
+    """How this asset actually behaved in the S&P 500's situations (the S&P is where the signals are tested)."""
+    a = asset_m.reindex(spx_m.index)
+    ra, rs = a.pct_change(), spx_m.pct_change()                     # same-month returns
+    na, ns = ra.shift(-1), rs.shift(-1)                             # the following month
+    st = broken.reindex(spx_m.index)
+    ok = na.notna() & ns.notna() & st.notna()
+    if ok.sum() < 36:
+        return None
+
+    def grp(mask):
+        mm = ok & mask
+        if mm.sum() < 12:
+            return None
+        return {"months": int(mm.sum()), "asset": float(na[mm].mean()), "spx": float(ns[mm].mean()), "rose": float((na[mm] > 0).mean())}
+    both = ra.notna() & rs.notna()
+    up, dn = both & (rs > 0), both & (rs < 0)
+    cap = None
+    if up.sum() >= 12 and dn.sum() >= 12 and abs(rs[up].mean()) >= 0.003 and abs(rs[dn].mean()) >= 0.003:
+        cap = {"up": float(ra[up].mean() / rs[up].mean()), "down": float(ra[dn].mean() / rs[dn].mean())}
+        if not all(-5 < v < 5 for v in cap.values()):
+            cap = None
+    worst = both & (rs <= rs[both].quantile(0.10))
+    bad = {"months": int(worst.sum()), "asset": float(ra[worst].mean()), "spx": float(rs[worst].mean())} if worst.sum() >= 6 else None
+    after = None
+    if vix_flag is not None:
+        f = vix_flag.reindex(spx_m.index)
+        starts = f[(f == 1) & (f.shift(1) != 1)].index
+        a12, s12 = a.shift(-12) / a - 1, spx_m.shift(-12) / spx_m - 1
+        rows = [(a12[d], s12[d]) for d in starts if pd.notna(a12.get(d)) and pd.notna(s12.get(d))]
+        if len(rows) >= 3:
+            after = {"episodes": len(rows), "asset": float(np.mean([r[0] for r in rows])), "spx": float(np.mean([r[1] for r in rows])),
+                     "beat": float(np.mean([r[0] > r[1] for r in rows]))}
+    now = st.dropna()
+    return {"since": a.dropna().index[0].strftime("%Y"), "by_trend": {"broken": grp(st == 1), "intact": grp(st == 0)},
+            "capture": cap, "worst_months": bad, "after_vix": after, "spx_trend_broken_now": bool(now.iloc[-1]) if len(now) else None}
+
+
+def link_layer(link: dict | None) -> dict:
+    if not link or link.get("spx_trend_broken_now") is None:
+        return {"name": "Market link", "text": "Not enough shared history with the S&P 500", "tone": "neutral"}
+    broken = link["spx_trend_broken_now"]
+    g = link["by_trend"]["broken" if broken else "intact"]
+    if not g:
+        return {"name": "Market link", "text": "Too few months in this S&P situation", "tone": "neutral"}
+    rel = g["asset"] - g["spx"]
+    state = "broken" if broken else "intact"
+    text = (f"When the S&P's trend was {state} it averaged {g['asset'] * 100:+.1f}% a month (S&P {g['spx'] * 100:+.1f}%), "
+            f"rising in {g['rose']:.0%} of months")
+    if broken:
+        tone = "bad" if g["asset"] < 0 and rel < 0 else ("good" if g["asset"] >= 0 else "warn")
+    else:
+        tone = "good" if g["asset"] > 0 and rel >= 0 else ("warn" if g["asset"] > 0 else "bad")
+    return {"name": f"Market link (since {link['since']})", "text": text, "tone": tone}
+
+
+def evidence_badge(kind: str, m: dict) -> dict:
+    r2 = m.get("r2")
+    if r2 is None:
+        return {"level": "Low", "text": "Not enough history to measure how closely it follows the S&P 500; treat this as context."}
+    share = f"{r2:.0%}"
+    if kind != "stock" and r2 >= 0.7:
+        return {"level": "High", "text": f"The S&P 500 explains {share} of its moves, so the S&P's tested signals apply closely."}
+    if r2 >= 0.5:
+        return {"level": "Medium", "text": f"The S&P 500 explains {share} of its moves: the market evidence applies, plus company-specific swings."}
+    return {"level": "Low", "text": f"The S&P 500 explains only {share} of its moves; most swings are company-specific, so treat the market evidence as context, not a call."}
+
+
 def ticker_view(item: dict, prices: pd.DataFrame, spx: pd.Series, fund: dict, econ: dict, market: dict,
-                flag: pd.Series | None, spx_m: pd.Series) -> dict | None:
+                flag: pd.Series | None, spx_m: pd.Series, ctx: dict | None = None) -> dict | None:
     s = item["s"]
     if s not in prices.columns:
         return None
@@ -416,18 +484,9 @@ def ticker_view(item: dict, prices: pd.DataFrame, spx: pd.Series, fund: dict, ec
                    "text": (f"{m['from_high'] * 100:+.0f}% from its 52-week high; " if m.get("from_high") is not None else "")
                    + ("above" if m.get("above_200d") else "below") + " its 200-day average"
                    + (f"; 3-month return {m['ret_3m'] * 100:+.0f}%" if m.get("ret_3m") is not None else "")})
-    if kind == "stock":
-        if f and f.get("growth") is not None:
-            g, mg = f["growth"], f.get("margin")
-            ftone = "good" if g >= 0.10 and (mg or 0) >= 0.10 else ("bad" if g < 0 or (mg is not None and mg < 0) else "warn")
-            layers.append({"name": f"Fundamentals ({f['period']}, SEC)", "tone": ftone,
-                           "text": f"Revenue {g * 100:+.0f}% year on year" + (f"; net margin {mg * 100:.0f}%" if mg is not None else "")})
-        else:
-            layers.append({"name": "Fundamentals (SEC)", "text": "Not available for this ticker", "tone": "neutral"})
-    else:
-        b = m.get("beta")
-        layers.append({"name": "Sensitivity", "tone": "warn" if (b or 1) > 1.1 else "neutral",
-                       "text": f"Moves about {b:.1f}× the S&P 500" if b is not None else "Sensitivity not available"})
+    asset_m = prices[s].dropna().resample("ME").last()
+    link = market_link(asset_m, spx_m, ctx["broken"], ctx.get("vix")) if ctx else None
+    layers.append(link_layer(link))
 
     tones = [l["tone"] for l in layers]
     nb, ng = tones.count("bad"), tones.count("good")
@@ -439,7 +498,7 @@ def ticker_view(item: dict, prices: pd.DataFrame, spx: pd.Series, fund: dict, ec
     horizons = [
         {"h": "1–3 months", "text": short[0], "tone": short[1], "tag": "Research-backed"},
         {"h": "6–12 months", "text": "Layers aligned, untested" if aligned else "Unclear: layers disagree", "tone": "neutral",
-         "tag": "No model edge"},
+         "tag": "No proven edge"},
         {"h": "3–5 years", "text": "Set by the business" if kind == "stock" else "Depends on valuation", "tone": "warn",
          "tag": "Not modelled yet"},
     ]
@@ -449,16 +508,16 @@ def ticker_view(item: dict, prices: pd.DataFrame, spx: pd.Series, fund: dict, ec
     elif m.get("above_200d"):
         flips.append({"name": "A close below its 200-day average", "text": f"Around {m['sma200']:,.2f}; turns the trend layer negative."})
     flips.append({"name": "A market re-entry trigger fires", "text": "VIX month-end ≥ 30 or credit spread +0.5 pts in 6 months."})
-    if kind == "stock":
-        flips.append({"name": "Next results", "text": "Revenue growth and margins confirm or break the fundamentals layer."})
-    asset_m = prices[s].dropna().resample("ME").last()
+    if link and link.get("spx_trend_broken_now"):
+        flips.append({"name": "The S&P 500's trend turns back up", "text": "Its record when the S&P's trend was intact then applies instead."})
     ev = risk_evidence(asset_m, spx_m, flag)
     b = m.get("beta")
     reading = (f"{'Near term' if kind == 'stock' else 'Short term'}, {nb} of {len(layers)} layers lean against it and {ng} support it"
                + (f"; it tends to move about {b:.1f}× the market" if b is not None else "") + ". "
                + ("Longer term, the business decides." if kind == "stock" else "Over years, valuation matters most."))
     return {"symbol": s, "name": item.get("n") or s, "kind": kind, "sector": item.get("sector"), "sector_etf": etf,
-            "metrics": m, "sector_metrics": sector_m, "fundamentals": f, "layers": layers, "headline": head[0],
+            "metrics": m, "sector_metrics": sector_m, "fundamentals": f, "market_link": link, "evidence": evidence_badge(kind, m),
+            "layers": layers, "headline": head[0],
             "headline_tone": head[1], "horizons": horizons, "flips": flips, "risk_evidence": ev, "reading": reading}
 
 
@@ -495,6 +554,15 @@ def build(store: Path, out: Path, skip_network: bool = False) -> dict:
                "prices_to": str(D["px:^GSPC"].dropna().index[-1].date()) if "px:^GSPC" in D and D["px:^GSPC"].notna().any() else None,
                "strip": strip_block(D, P), "economy": econ, "market": market}
     market["drivers"] = drivers
+    market["trigger_context"] = res.get("trigger_context")
+    market["trend_rule"] = res.get("trend_rule")
+    try:
+        import research
+        lab = research.run_if_stale(store) if not skip_network else research.run_if_stale(store, max_age_days=1e9)
+    except Exception as err:
+        print(f"  research lab unavailable ({err.__class__.__name__})")
+        lab = None
+    market["research"] = lab
     market["economy_link"] = link
 
     universe = load_universe(store) if not skip_network else [
@@ -528,6 +596,9 @@ def build(store: Path, out: Path, skip_network: bool = False) -> dict:
         print(f"::warning::Missing in this run: {h}")
 
     S, spx_m = build_signals(P)
+    ma10 = spx_m.rolling(10).mean()
+    ctx = {"broken": (spx_m < ma10).astype(float).where(ma10.notna()),
+           "vix": S["Volatility stress (VIX 30+ at month-end)"][0] if "Volatility stress (VIX 30+ at month-end)" in S else None}
     on_def = [d["signal"] for d in crit.get("defensive", []) if d.get("now")]
     flag = pd.concat([S[n][0] for n in on_def if n in S], axis=1).min(axis=1) if on_def else None
 
@@ -538,7 +609,7 @@ def build(store: Path, out: Path, skip_network: bool = False) -> dict:
     tdir.mkdir(parents=True)
     listed, n = [], 0
     for item in universe:
-        v = ticker_view(item, prices, spx, fund, econ, crit, flag, spx_m)
+        v = ticker_view(item, prices, spx, fund, econ, crit, flag, spx_m, ctx)
         if v is None:
             continue
         (tdir / f"{file_name(item['s'])}.json").write_text(json.dumps(finite(v), separators=(",", ":"), default=str, allow_nan=False))

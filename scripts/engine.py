@@ -263,6 +263,94 @@ def pct(x, d=1, sign=True):
     return f"{x * 100:+.{d}f}%" if sign else f"{x * 100:.{d}f}%"
 
 
+def trend_rule(spx: pd.Series, P: pd.DataFrame) -> dict:
+    """Faber-style rule: hold the S&P 500 while its month-end close is at or above its 10-month average, else T-bills."""
+    px = spx.dropna()
+    ma = px.rolling(10).mean()
+    tb = latest(P, "fred:TB3MS").reindex(px.index).ffill() / 1200
+    r = px.pct_change().shift(-1)                                   # next month's return
+    inn = (px >= ma).astype(float).where(ma.notna())
+    out = {"periods": []}
+    for a, b in (("1950-01-31", "1989-12-31"), ("1990-01-31", str(px.index[-1].date()))):
+        m = (px.index >= a) & (px.index <= b) & r.notna() & inn.notna() & tb.notna()
+        if m.sum() < 60:
+            continue
+        rr, cash, on = r[m].values, tb[m].values, inn[m].values == 1
+        strat = np.where(on, rr, cash)
+
+        def stats(x):
+            cagr = float(np.prod(1 + x) ** (12 / len(x)) - 1)
+            sharpe = float((x - cash).mean() / x.std() * np.sqrt(12)) if x.std() > 0 else None
+            curve = np.cumprod(1 + x)
+            return {"cagr": cagr, "sharpe": sharpe, "maxdd": float((curve / np.maximum.accumulate(curve) - 1).min())}
+        out["periods"].append({"period": f"{pd.Timestamp(a).year}–{pd.Timestamp(b).year}", "rule": stats(strat), "buy_hold": stats(rr),
+                               "out_share": float(1 - on.mean())})
+    if len(ma.dropna()):
+        out["now"] = {"in_stocks": bool(px.iloc[-1] >= ma.iloc[-1]), "price": float(px.iloc[-1]), "average": float(ma.iloc[-1]),
+                      "gap": float(px.iloc[-1] / ma.iloc[-1] - 1), "month": px.index[-1].strftime("%b %Y")}
+    return out
+
+
+def trigger_context(S: dict, spx: pd.Series, P: pd.DataFrame) -> dict:
+    """Does a re-entry trigger behave differently when the economy is still deteriorating (as in 2001 and 2008)?
+    Rule fixed in advance, not tuned: deteriorating = Sahm indicator >= 0.50, or unemployment up 0.5 points or
+    more over 6 months, using values published at the time (one-month lag)."""
+    from evidence_check import worst_dip_12m
+
+    def num(x):
+        try:
+            x = float(x)
+        except (TypeError, ValueError):
+            return None
+        return x if math.isfinite(x) else None
+
+    sahm = latest(P, "fred:SAHMREALTIME").shift(1)
+    un = latest(P, "fred:UNRATE")
+    un6 = (un - un.shift(6)).shift(1)
+    det = ((sahm >= 0.5) | (un6 >= 0.5)).astype(float).where(sahm.notna() | un6.notna())
+    cpi = col(P, "fred:CPIAUCSL")
+    infl = (cpi / cpi.shift(12) - 1).shift(1)
+    ihigh = (infl >= 0.04).astype(float).where(infl.notna())
+    fwd12 = spx.shift(-12) / spx - 1
+    dip = worst_dip_12m(spx)
+    out = {}
+    for name in ("Volatility stress (VIX 30+ at month-end)", "Credit spread up 0.5pp+ in 6 months (Baa-10Y)"):
+        if name not in S:
+            continue
+        f = S[name][0]
+        starts = f[(f == 1) & (f.shift(1) != 1)].index          # first month of each episode
+        rows = []
+        for d in starts:
+            dv = det.get(d)
+            iv = ihigh.get(d)
+            rows.append({"start": d.strftime("%b %Y"), "deteriorating": None if dv is None or pd.isna(dv) else bool(dv),
+                         "infl_high": None if iv is None or pd.isna(iv) else bool(iv), "infl": num(infl.get(d)),
+                         "sahm": num(sahm.get(d)), "unemp_6m": num(un6.get(d)),
+                         "next12": num(fwd12.get(d)), "dip": num(dip.get(d))})
+        groups = {}
+        for key, val in (("deteriorating", True), ("stable", False)):
+            g = [r for r in rows if r["deteriorating"] is val and r["next12"] is not None]
+            if g:
+                groups[key] = {"n": len(g), "avg12": float(np.mean([r["next12"] for r in g])),
+                               "rose": float(np.mean([r["next12"] > 0 for r in g])),
+                               "dip": float(np.mean([r["dip"] for r in g if r["dip"] is not None])) if any(r["dip"] is not None for r in g) else None}
+        by_infl = {}
+        for key, val in (("high", True), ("low", False)):
+            g = [r for r in rows if r["infl_high"] is val and r["next12"] is not None]
+            if g:
+                by_infl[key] = {"n": len(g), "avg12": float(np.mean([r["next12"] for r in g])),
+                                "rose": float(np.mean([r["next12"] > 0 for r in g])),
+                                "dip": float(np.mean([r["dip"] for r in g if r["dip"] is not None])) if any(r["dip"] is not None for r in g) else None}
+        out[name] = {"episodes": rows, "groups": groups, "by_inflation": by_infl}
+    now = det.dropna()
+    return {"rule": "Deteriorating = Sahm indicator at 0.50 or more, or unemployment up 0.5 points or more over 6 months",
+            "triggers": out,
+            "now": {"deteriorating": bool(now.iloc[-1]) if len(now) else None, "sahm": num(sahm.dropna().iloc[-1]) if sahm.notna().any() else None,
+                    "inflation": num(infl.dropna().iloc[-1]) if infl.notna().any() else None,
+                    "infl_high": bool(ihigh.dropna().iloc[-1]) if ihigh.notna().any() else None,
+                    "unemp_6m": num(un6.dropna().iloc[-1]) if un6.notna().any() else None}}
+
+
 def run(store: Path) -> dict:
     P = load_panel(store)
     S, spx = build_signals(P)
@@ -424,7 +512,15 @@ def run(store: Path) -> dict:
     short = [r for r in horizon_rows if completed(r) and r["roles_h"][3] == "Defensive" and r["roles_h"][6] == "Defensive"
              and r["roles_h"][12] != "Defensive"]
     rec_on, def_on, short_on = [r for r in recovery if r["now"]], [r for r in defensive if r["now"]], [r for r in short if r["now"]]
-    if rec_on:
+    cpi_s = col(P, "fred:CPIAUCSL")
+    infl_now = (cpi_s / cpi_s.shift(12) - 1).dropna()
+    infl_now = float(infl_now.iloc[-1]) if len(infl_now) else None
+    infl_high = infl_now is not None and infl_now >= 0.04
+    if rec_on and infl_high:
+        level, colour = "Elevated risk", "mixed"
+        summary = (f"A re-entry signal is on, but inflation is {infl_now:.1%}. In past cases with inflation at 4% or more the signal "
+                   "was much weaker, because the Fed could not come to the rescue.")
+    elif rec_on:
         level, colour = "Recovery window", "good"
         summary = ("A proven re-entry signal is on. After it fired, the following 6 to 24 months beat the average in both "
                    "halves of history.")
@@ -451,13 +547,14 @@ def run(store: Path) -> dict:
          "gap": None if not len(spread6) else float(0.5 - spread6.iloc[-1])},
     ]
     criteria = {"level": level, "colour": colour, "summary": summary, "triggers": triggers,
+                "inflation_check": {"cpi": infl_now, "high": infl_high},
                 "recovery": [ev(r) | {"now": r["now"]} for r in recovery],
                 "defensive": [ev(r) | {"now": r["now"]} for r in defensive],
                 "short": [ev(r) | {"now": r["now"]} for r in short],
                 "watch": [r["signal"] for r in horizon_rows if r not in recovery + defensive + short]}
 
     return {"generated": datetime.now().isoformat(timespec="minutes"), "data_to": dates[-1].strftime("%Y-%m-%d"),
-            "criteria": criteria,
+            "criteria": criteria, "trigger_context": trigger_context(S, spx, P), "trend_rule": trend_rule(spx, P),
             "call": {"prob_up_12m": prob, "base_rate": base_now, "direction": direction, "confidence": confidence,
                      "basis": basis, "models": models, "weights": weights},
             "track": track, "analog": analog_now, "industry_ls": ls, "combo_now": combo, "single_now": now_single,

@@ -51,11 +51,18 @@ export function compact(summary, assets) {
       odds_higher_in_12m: {probability: call.prob_up_12m, base_rate: call.base_rate, basis: call.basis, confidence: call.confidence},
       similar_past_months: {count: a.n, avg_next_12m: a.mean, share_positive: a.up, p10: a.p10, p90: a.p90,
         closest: (a.episodes || []).map(x => ({month: x.closest, next_12m: x.next12}))},
+      trend_rule_the_proven_edge: m.trend_rule ? {now: m.trend_rule.now, track_record: m.trend_rule.periods} : null,
+      inflation_check: c.inflation_check,
+      research_lab_verdicts: (m.research?.results || []).map(r => ({signal: r.signal, horizon_months: r.horizon, verdict: r.verdict,
+        early_period_skill: r.early_skill, later_period_skill: r.late_skill})),
+      vix_trigger_by_economy: m.trigger_context ? {rule: m.trigger_context.rule, now: m.trigger_context.now,
+        ...(m.trigger_context.triggers?.["Volatility stress (VIX 30+ at month-end)"] || {})} : null,
       combination_now: m.combo ? {signals: m.combo.signals, episodes: m.combo.eps, avg_next_12m_when_on: m.combo.on_mean,
         avg_next_12m_otherwise: m.combo.off_mean, history: m.combo.episodes_list} : null},
     assets: assets.map(t => ({symbol: t.symbol, name: t.name, kind: t.kind, sector: t.sector, headline: t.headline,
       layers: (t.layers || []).map(l => `${l.name}: ${l.text} [${({good: "tailwind", bad: "headwind", warn: "mixed"})[l.tone] || "n/a"}]`),
-      horizons: t.horizons, metrics: t.metrics, fundamentals: t.fundamentals, risk_evidence_in_months_like_now: t.risk_evidence,
+      horizons: t.horizons, metrics: t.metrics, evidence_strength: t.evidence, behaviour_in_sp500_situations: t.market_link,
+      company_figures_not_tested: t.fundamentals, risk_evidence_in_months_like_now: t.risk_evidence,
       what_would_flip_it: (t.flips || []).map(f => `${f.name}: ${f.text}`), reading: t.reading})),
   };
 }
@@ -100,6 +107,7 @@ function systemPrompt(ctx) {
 Rules:
 - Use only numbers that appear in DATA. Fractions are shares (0.63 = 63%). Never invent prices, dates or statistics; if DATA lacks something, say so.
 - Keep horizons apart: 1-3 months, 6-12 months, 3-5 years. Say whether a point is proven by the app's evidence tests, research-backed, or has no proven edge.
+- For direction, rely only on signals whose research_lab verdict is "Solid" (so far the trend rule, for 1-3 months). Everything else is context.
 - The app's 12-month models have no proven edge unless DATA says otherwise. Do not predict prices or tell the user to buy or sell; explain risks, odds and what would change the view.
 - Plain language, short paragraphs, at most 170 words, no headings, tables or disclaimers (the app shows one).
 DATA:
