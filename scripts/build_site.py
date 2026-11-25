@@ -408,7 +408,8 @@ def key_dates(D: pd.DataFrame, n: int = 6) -> list:
     return out[:n]
 
 
-def market_link(asset_m: pd.Series, spx_m: pd.Series, broken: pd.Series, vix_flag: pd.Series | None) -> dict | None:
+def market_link(asset_m: pd.Series, spx_m: pd.Series, broken: pd.Series, vix_flag: pd.Series | None,
+                now_state: bool | None = None) -> dict | None:
     """How this asset actually behaved in the S&P 500's situations (the S&P is where the signals are tested)."""
     a = asset_m.reindex(spx_m.index)
     ra, rs = a.pct_change(), spx_m.pct_change()                     # same-month returns
@@ -443,7 +444,7 @@ def market_link(asset_m: pd.Series, spx_m: pd.Series, broken: pd.Series, vix_fla
                      "beat": float(np.mean([r[0] > r[1] for r in rows]))}
     now = st.dropna()
     return {"since": a.dropna().index[0].strftime("%Y"), "by_trend": {"broken": grp(st == 1), "intact": grp(st == 0)},
-            "capture": cap, "worst_months": bad, "after_vix": after, "spx_trend_broken_now": bool(now.iloc[-1]) if len(now) else None}
+            "capture": cap, "worst_months": bad, "after_vix": after, "spx_trend_broken_now": now_state if now_state is not None else (bool(now.iloc[-1]) if len(now) else None)}
 
 
 def link_layer(link: dict | None) -> dict:
@@ -511,7 +512,7 @@ def ticker_view(item: dict, prices: pd.DataFrame, spx: pd.Series, fund: dict, ec
                    + ("above" if m.get("above_200d") else "below") + " its 200-day average"
                    + (f"; 3-month return {m['ret_3m'] * 100:+.0f}%" if m.get("ret_3m") is not None else "")})
     asset_m = prices[s].dropna().resample("ME").last()
-    link = market_link(asset_m, spx_m, ctx["broken"], ctx.get("vix")) if ctx else None
+    link = market_link(asset_m, spx_m, ctx["broken"], ctx.get("vix"), ctx.get("broken_now")) if ctx else None
     layers.append(link_layer(link))
 
     tones = [l["tone"] for l in layers]
@@ -655,7 +656,11 @@ def build(store: Path, out: Path, skip_network: bool = False) -> dict:
     market["tested_rejected"] = tested
     S, spx_m = build_signals(P)
     ma10 = spx_m.rolling(10).mean()
-    ctx = {"earn": earn, "fin": fin, "broken": (spx_m < ma10).astype(float).where(ma10.notna()),
+    br = (spx_m < ma10).astype(float).where(ma10.notna())
+    month_complete = (res.get("criteria") or {}).get("month_complete", True)
+    brd = br.dropna()
+    broken_now = (bool(brd.iloc[-1 if month_complete else -2] == 1) if len(brd) >= 2 else None)  # the confirmed month-end state
+    ctx = {"earn": earn, "fin": fin, "broken_now": broken_now, "broken": br,
            "vix": S["Volatility stress (VIX 30+ at month-end)"][0] if "Volatility stress (VIX 30+ at month-end)" in S else None}
     on_def = [d["signal"] for d in crit.get("defensive", []) if d.get("now")]
     flag = pd.concat([S[n][0] for n in on_def if n in S], axis=1).min(axis=1) if on_def else None

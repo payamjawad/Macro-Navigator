@@ -574,7 +574,7 @@ def run(store: Path) -> dict:
         return ("Normal", "good", "No proven defensive or re-entry signal is on. History says expect roughly normal odds.")
     level, colour, summary = decide("now")
     live_level, live_colour, live_summary = decide("now_live")
-    changing = [r["signal"] for r in horizon_rows if r["now"] != r["now_live"]]
+    changing = [r["signal"] for r in recovery + defensive + short if r["now"] != r["now_live"]]   # only signals that set the stance
     vix_d = dd["px:^VIX"].dropna() if "px:^VIX" in dd else pd.Series(dtype=float)
     vix_me = col(P, "px:^VIX", "fred:VIXCLS").dropna()
     spread6 = (latest(P, "fred:BAA") - latest(P, "fred:GS10", "shiller:GS10")).diff(6).dropna()
