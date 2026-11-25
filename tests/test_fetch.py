@@ -379,3 +379,18 @@ def test_trend_rule_and_research_lab_reach_the_app(store, tmp_path):
     build_site.main(["--store", str(store), "--out", str(out), "--offline"])
     s = json.loads((out / "public" / "data" / "summary.json").read_text())
     assert s["market"]["research"]["results"] and s["market"]["trend_rule"]["now"]
+
+
+def test_engine_separates_confirmed_month_end_from_todays_reading(store):
+    import engine
+    fa.main(["--out", str(store), "--inprocess"])
+    engine.main(["--store", str(store)])
+    res = json.loads((store / "engine_results.json").read_text())
+    c, tr = res["criteria"], res["trend_rule"]
+    assert c["month_complete"] in (True, False) and c["confirmed_month"]
+    assert set(c["live"]) >= {"level", "differs", "changing"}
+    assert c["live"]["differs"] == (c["live"]["level"] != c["level"])
+    if not c["month_complete"]:
+        assert all(t["provisional"] for t in c["triggers"])
+        assert tr.get("live") and tr["now"]["month"] != tr["live"]["month"]
+    assert "total_return" in tr and all("switches_per_year" in p for p in tr["periods"])

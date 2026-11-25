@@ -205,13 +205,17 @@ def summarize(df: pd.DataFrame, today: pd.Timestamp | None = None) -> dict | Non
         v, e, _ = _latest(df, key, today)
         return v if (e is not None and b_end is not None and abs((e - b_end).days) <= 5) else None
     liab, cash, eq = b("liabilities"), b("cash"), b("equity")
+    liab_est = False
+    if liab is None and assets is not None and eq is not None:
+        liab, liab_est = assets - eq, True                     # many companies do not report a total: assets minus equity
     sh, s_end, _ = _latest(df, "shares", today)
     sh_y = _year_ago(df, "shares", s_end, today) if s_end is not None else None
     shc = (sh / sh_y - 1) if sh and sh_y else None
     if shc is not None and not (-0.3 < shc < 0.4):
         shc = None                                              # share splits, not issuance or buybacks
     out.update({"balance_date": str(b_end.date()) if b_end is not None else None, "assets": assets, "cash": cash,
-                "liabilities": liab, "equity": eq, "liabilities_share": ratio(liab, assets), "cash_share": ratio(cash, assets),
+                "liabilities": liab, "liabilities_estimated": liab_est, "equity": eq, "liabilities_share": ratio(liab, assets),
+                "cash_share": ratio(cash, assets),
                 "share_change": shc})
     if all(out.get(k) is None for k in ("revenue", "revenue_year", "assets")):
         return None

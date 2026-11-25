@@ -266,13 +266,17 @@ def pct(x, d=1, sign=True):
 SWITCH_COST = 0.001                                              # 0.10% each time the rule moves in or out
 
 
-def trend_rule(spx: pd.Series, P: pd.DataFrame) -> dict:
+def trend_rule(spx: pd.Series, P: pd.DataFrame, month_complete: bool = True) -> dict:
     """Faber-style rule: hold the S&P 500 while its month-end close is at or above its 10-month average, else T-bills.
     Results are after 0.10% per switch; a decade table shows whether the edge is holding up."""
     px = spx.dropna()
     ma = px.rolling(10).mean()
     tb = latest(P, "fred:TB3MS").reindex(px.index).ffill() / 1200
-    r = px.pct_change().shift(-1)                                   # next month's return
+    # total return: price plus dividends (Shiller's annual dividend / 12 over the price), both for the rule and buy and hold
+    dy = pd.Series(0.0, index=px.index)
+    if "shiller:D" in P and "shiller:P" in P:
+        dy = (P["shiller:D"] / 12 / P["shiller:P"]).reindex(px.index).ffill().fillna(0.0)
+    r = (px.pct_change() + dy.shift(1)).shift(-1)                   # next month's total return
     inn = (px >= ma).astype(float).where(ma.notna())
     switch = (inn != inn.shift(1)) & inn.notna() & inn.shift(1).notna()
     out = {"periods": [], "cost_per_switch": SWITCH_COST}
@@ -303,9 +307,14 @@ def trend_rule(spx: pd.Series, P: pd.DataFrame) -> dict:
                         "rule_maxdd": float((cr / np.maximum.accumulate(cr) - 1).min()), "bh_maxdd": float((cb / np.maximum.accumulate(cb) - 1).min()),
                         "out_share": float(1 - on.mean()), "switches": int(switch[m].sum())})
     out["decades"] = decades
-    if len(ma.dropna()):
-        out["now"] = {"in_stocks": bool(px.iloc[-1] >= ma.iloc[-1]), "price": float(px.iloc[-1]), "average": float(ma.iloc[-1]),
-                      "gap": float(px.iloc[-1] / ma.iloc[-1] - 1), "month": px.index[-1].strftime("%b %Y")}
+    out["total_return"] = bool(dy.abs().sum() > 0)
+    if len(ma.dropna()) >= 2:
+        k = -1 if month_complete else -2
+        out["now"] = {"in_stocks": bool(px.iloc[k] >= ma.iloc[k]), "price": float(px.iloc[k]), "average": float(ma.iloc[k]),
+                      "gap": float(px.iloc[k] / ma.iloc[k] - 1), "month": px.index[k].strftime("%b %Y"), "confirmed": True}
+        if not month_complete:
+            out["live"] = {"in_stocks": bool(px.iloc[-1] >= ma.iloc[-1]), "price": float(px.iloc[-1]), "average": float(ma.iloc[-1]),
+                           "gap": float(px.iloc[-1] / ma.iloc[-1] - 1), "month": px.index[-1].strftime("%b %Y")}
     return out
 
 
@@ -383,6 +392,12 @@ def run(store: Path) -> dict:
         raise SystemExit("Not enough S&P 500 history. Run fetch_all.py first.")
     dd = load_daily(store)
     daily = dd["px:^GSPC"].dropna() if "px:^GSPC" in dd else None
+    # a month counts only once it has closed: mid-month, the last row is a live reading, not a month-end close
+    month_complete = True
+    if daily is not None and len(daily):
+        d_last = daily.index[-1]
+        month_complete = bool(d_last == d_last + pd.offsets.BMonthEnd(0)) or P.index[-1].to_period("M") < d_last.to_period("M")
+    ci = -1 if month_complete else -2                                    # row of the last completed month-end
     fwd = {h: forward(spx, h) for h in HORIZONS}
     fwd12 = fwd[12]
     up12 = (fwd12 > 0).astype(float).where(fwd12.notna())
@@ -401,8 +416,10 @@ def run(store: Path) -> dict:
         best = [h for h in HORIZONS if role_of(row[h]) in ("Defensive", "Recovery")]
         row["role"] = roles[name]
         row["holds_at"] = best
-        now = flag.dropna()
-        row["now"] = bool(len(now) and now.iloc[-1] == 1)
+        v_conf = flag.iloc[ci] if len(flag) >= abs(ci) else np.nan
+        v_live = flag.iloc[-1] if len(flag) else np.nan
+        row["now"] = bool(v_conf == 1)                                   # confirmed at the last month-end close
+        row["now_live"] = bool(v_live == 1)                              # if the month closed today
         horizon_rows.append(row)
 
     from evidence_check import worst_dip_12m
@@ -523,7 +540,7 @@ def run(store: Path) -> dict:
     # criteria: roles come from the evidence above, so they update themselves as history grows
     def ev(r):
         c12 = r[12] or {}
-        return {"signal": r["signal"], "on_up": c12.get("on_up"), "off_up": c12.get("off_up"),
+        return {"signal": r["signal"], "now_live": r.get("now_live"), "on_up": c12.get("on_up"), "off_up": c12.get("off_up"),
                 "on_mean": c12.get("on_mean"), "off_mean": c12.get("off_mean"), "eps": c12.get("eps"),
                 "dip_on": r["dip_on"], "dip_off": r["dip_off"],
                 "horizons": [h for h in HORIZONS if r["roles_h"][h] in ("Defensive", "Recovery")]}
@@ -533,42 +550,51 @@ def run(store: Path) -> dict:
     defensive = [r for r in horizon_rows if completed(r) and r["roles_h"][12] == "Defensive"]
     short = [r for r in horizon_rows if completed(r) and r["roles_h"][3] == "Defensive" and r["roles_h"][6] == "Defensive"
              and r["roles_h"][12] != "Defensive"]
-    rec_on, def_on, short_on = [r for r in recovery if r["now"]], [r for r in defensive if r["now"]], [r for r in short if r["now"]]
     cpi_s = col(P, "fred:CPIAUCSL")
     infl_now = (cpi_s / cpi_s.shift(12) - 1).dropna()
     infl_now = float(infl_now.iloc[-1]) if len(infl_now) else None
     infl_high = infl_now is not None and infl_now >= 0.04
-    if rec_on and infl_high:
-        level, colour = "Elevated risk", "mixed"
-        summary = (f"A re-entry signal is on, but inflation is {infl_now:.1%}. In past cases with inflation at 4% or more the signal "
-                   "was much weaker, because the Fed could not come to the rescue.")
-    elif rec_on:
-        level, colour = "Recovery window", "good"
-        summary = ("A proven re-entry signal is on. After it fired, the following 6 to 24 months beat the average in both "
-                   "halves of history.")
-    elif len(def_on) >= 2:
-        level, colour = "High risk", "bad"
-        summary = (f"{len(def_on)} defensive signals are on together. Odds of gains are below normal and dips have run deeper; "
-                   "no re-entry signal has fired yet.")
-    elif def_on or short_on:
-        level, colour = "Elevated risk", "mixed"
-        summary = "A defensive signal is on: lower odds of gains and deeper dips than usual. No re-entry signal has fired yet."
-    else:
-        level, colour = "Normal", "good"
-        summary = "No proven defensive or re-entry signal is on. History says expect roughly normal odds."
+
+    def decide(key):
+        rec_on = [r for r in recovery if r[key]]
+        def_on = [r for r in defensive if r[key]]
+        short_on = [r for r in short if r[key]]
+        if rec_on and infl_high:
+            return ("Elevated risk", "mixed", f"A re-entry signal is on, but inflation is {infl_now:.1%}. In past cases with inflation "
+                    "at 4% or more the signal was much weaker, because the Fed could not come to the rescue.")
+        if rec_on:
+            return ("Recovery window", "good", "A proven re-entry signal is on. After it fired, the following 6 to 24 months beat "
+                    "the average in both halves of history.")
+        if len(def_on) >= 2:
+            return ("High risk", "bad", f"{len(def_on)} defensive signals are on together. Odds of gains are below normal and dips "
+                    "have run deeper; no re-entry signal has fired yet.")
+        if def_on or short_on:
+            return ("Elevated risk", "mixed", "A defensive signal is on: lower odds of gains and deeper dips than usual. No re-entry "
+                    "signal has fired yet.")
+        return ("Normal", "good", "No proven defensive or re-entry signal is on. History says expect roughly normal odds.")
+    level, colour, summary = decide("now")
+    live_level, live_colour, live_summary = decide("now_live")
+    changing = [r["signal"] for r in horizon_rows if r["now"] != r["now_live"]]
     vix_d = dd["px:^VIX"].dropna() if "px:^VIX" in dd else pd.Series(dtype=float)
     vix_me = col(P, "px:^VIX", "fred:VIXCLS").dropna()
     spread6 = (latest(P, "fred:BAA") - latest(P, "fred:GS10", "shiller:GS10")).diff(6).dropna()
+    vix_conf = float(vix_me.iloc[ci]) if len(vix_me) >= abs(ci) else None
     triggers = [
-        {"name": "Volatility capitulation", "rule": "VIX closes a month at 30 or above",
+        {"name": "Volatility capitulation", "rule": "VIX closes a month at 30 or above", "provisional": not month_complete,
+         "confirmed": None if vix_conf is None else bool(vix_conf >= 30), "month_end_value": vix_conf,
          "now": f"VIX {vix_d.iloc[-1]:.1f} on {vix_d.index[-1]:%d %b}" if len(vix_d) else
                 (f"VIX {vix_me.iloc[-1]:.1f} at last month-end" if len(vix_me) else "n/a"),
          "gap": None if not len(vix_me) else float(30 - (vix_d.iloc[-1] if len(vix_d) else vix_me.iloc[-1]))},
-        {"name": "Credit stress washout", "rule": "Baa minus 10-year spread up 0.5 points or more in 6 months",
+        {"name": "Credit stress washout", "rule": "Baa minus 10-year spread up 0.5 points or more in 6 months", "provisional": not month_complete,
+         "confirmed": bool(spread6.iloc[ci] >= 0.5) if len(spread6) >= abs(ci) else None,
          "now": f"{spread6.iloc[-1]:+.2f} points over 6 months" if len(spread6) else "n/a",
          "gap": None if not len(spread6) else float(0.5 - spread6.iloc[-1])},
     ]
+    month_label = P.index[ci].strftime("%b %Y")
     criteria = {"level": level, "colour": colour, "summary": summary, "triggers": triggers,
+                "confirmed_month": month_label, "month_complete": month_complete,
+                "live": {"level": live_level, "colour": live_colour, "summary": live_summary, "differs": live_level != level,
+                         "changing": changing, "as_of": str(daily.index[-1].date()) if daily is not None and len(daily) else None},
                 "inflation_check": {"cpi": infl_now, "high": infl_high},
                 "recovery": [ev(r) | {"now": r["now"]} for r in recovery],
                 "defensive": [ev(r) | {"now": r["now"]} for r in defensive],
@@ -576,7 +602,7 @@ def run(store: Path) -> dict:
                 "watch": [r["signal"] for r in horizon_rows if r not in recovery + defensive + short]}
 
     return {"generated": datetime.now().isoformat(timespec="minutes"), "data_to": dates[-1].strftime("%Y-%m-%d"),
-            "criteria": criteria, "trigger_context": trigger_context(S, spx, P), "trend_rule": trend_rule(spx, P),
+            "criteria": criteria, "trigger_context": trigger_context(S, spx, P), "trend_rule": trend_rule(spx, P, month_complete),
             "call": {"prob_up_12m": prob, "base_rate": base_now, "direction": direction, "confidence": confidence,
                      "basis": basis, "models": models, "weights": weights},
             "track": track, "analog": analog_now, "industry_ls": ls, "combo_now": combo, "single_now": now_single,
@@ -594,7 +620,7 @@ def criteria_html(res: dict) -> str:
     def gap_text(t):
         if t["gap"] is None:
             return ""
-        return "fired" if t["gap"] <= 0 else f"{t['gap']:.2f} to go"
+        return ("on today, counts at the month-end close" if t.get("provisional") else "fired") if t["gap"] <= 0 else f"{t['gap']:.2f} to go"
     rows = "".join(
         f"<tr><td><b>{e(t['name'])}</b><div class='dim'>{e(t['rule'])}</div></td><td>{e(t['now'])}</td>"
         f"<td class='n'>{gap_text(t)}</td></tr>" for t in cr["triggers"])

@@ -196,8 +196,8 @@ function renderMarket() {
     <div class="row"><span>History</span><span>${d.eps || "?"} episodes · proven at ${esc((d.horizons || []).map(h => h + "m").join(", "))}</span></div></div>`;
   const prog = t => /VIX/.test(t.name + t.rule) ? Math.max(0, Math.min(1, (30 - (t.gap ?? 30)) / 30)) : Math.max(0, Math.min(1, (0.5 - (t.gap ?? 0.5)) / 0.5));
   const trig = (c.triggers || []).map(t => `<div class="mini"><div class="row"><b style="font-size:14px;color:var(--ink)">${esc(t.rule)}</b>
-      <b style="color:#93C5FD;white-space:nowrap">${t.gap == null ? "" : t.gap <= 0 ? "Fired" : t.gap.toFixed(2) + " to go"}</b></div>
-      <div class="bar"><i style="width:${Math.round(prog(t) * 100)}%"></i></div><span class="dim">Now: ${esc(t.now)}</span></div>`).join("");
+      <b style="color:${t.gap != null && t.gap <= 0 && t.provisional ? TONE.warn : "#93C5FD"};white-space:nowrap">${t.gap == null ? "" : t.gap <= 0 ? (t.provisional ? "On today, not yet confirmed" : "Fired") : t.gap.toFixed(2) + " to go"}</b></div>
+      <div class="bar"><i style="width:${Math.round(prog(t) * 100)}%"></i></div><span class="dim">Now: ${esc(t.now)}${t.provisional ? " · counts only at the month-end close" : ""}${t.confirmed ? " · fired at the last month-end" : ""}</span></div>`).join("");
   const done = combo ? (combo.episodes_list || []).filter(x => x.next12 != null) : [];
   const since80 = done.filter(x => +x.start.slice(-4) >= 1980);
   const usable = Object.entries(m.track || {}).filter(([k, t]) => t && t.usable).map(([k]) => k);
@@ -205,8 +205,12 @@ function renderMarket() {
     "Elevated risk": "Risk is above normal. Keep an eye on the defensive signals and the re-entry triggers.",
     "Recovery window": "A proven re-entry signal is on: historically one of the better times to add risk.",
     "Normal": "No proven warning or re-entry signal is on. History says expect roughly normal odds."}[c.level] || "";
-  return `<section class="card"><span class="dim">Market stance</span><span class="stance" style="font-size:34px;color:${TONE[levelTone]}">${esc(c.level || "n/a")}</span>
-      ${meter}<p class="p">${esc(c.summary || "")}</p></section>
+  const live = c.live || {}, meD = (S.summary.key_dates || []).find(e => e.kind === "month_end");
+  const prov = live.differs ? `<div class="note">Confirmed at the ${esc(c.confirmed_month || "last")} close. If ${esc(meD ? new Date(meD.date + "T12:00:00Z").toLocaleDateString(undefined, {month: "long"}) : "this month")} closed today it would read <b>${esc(live.level)}</b>. Changing: ${esc((live.changing || []).join(" · "))}. The stance changes only at the month-end close${meD ? ", " + esc(fdate(meD.date)) : ""}.</div>`
+    : (c.month_complete === false ? `<span class="dim" style="font-size:12px">Confirmed at the ${esc(c.confirmed_month || "last")} close; today's readings point the same way.</span>` : "");
+  return `${guidePanel("Quick guide: the market", marketSteps(), marketDecision())}
+    <section class="card"><span class="dim">Market stance</span><span class="stance" style="font-size:34px;color:${TONE[levelTone]}">${esc(c.level || "n/a")}</span>
+      ${meter}<p class="p">${esc(c.summary || "")}</p>${prov}</section>
     ${(m.drivers || []).length ? `<section class="card"><span class="dim">What's driving the stance</span>
       ${m.drivers.map(d => `<div style="font-size:14px;line-height:1.45"><b style="color:${d.on ? TONE.bad : TONE.good}">${esc(d.name)}:</b> ${esc(d.text)}</div>`).join("")}
       <p class="p" style="font-size:13px">${esc(m.economy_link || "")}</p></section>` : ""}
@@ -215,6 +219,7 @@ function renderMarket() {
     ${trendCard(m.trend_rule)}
     <div class="wide2"><section style="display:flex;flex-direction:column;gap:8px"><h2>Why: signals on now</h2>
       ${defOn.map(sig).join("") || `<div class="mini"><span class="p">No defensive signal is on.</span></div>`}
+      ${[...(c.defensive || []), ...(c.recovery || []), ...(c.short || [])].filter(d => d.now_live && !d.now).map(d => `<div class="mini"><b style="font-size:13px">${esc(d.signal)}</b><span class="dim" style="font-size:12px">On in today's reading, not yet at a month-end close.</span></div>`).join("")}
       ${recOn.map(sig).join("")}
       ${combo ? `<div class="mini"><b style="font-size:14px">Together: ${combo.eps} past episodes</b><span class="p" style="font-size:13px">Next 12 months averaged ${pct(combo.on_mean, 1)} vs ${pct(combo.off_mean, 1)} otherwise${since80.length ? `. Since 1980, ${since80.filter(x => x.next12 > 0).length} of ${since80.length} were followed by gains` : ""}.</span></div>` : ""}
     </section>
@@ -240,13 +245,14 @@ function trendCard(t) {
       <span class="dim" style="font-weight:400">vs ${pct(p.buy_hold.cagr, 1, false)} · ${sh(p.buy_hold.sharpe)} · ${pct(p.buy_hold.maxdd, 0)}</span></b></div>`).join("");
   return `<section class="card"><span class="dim">The proven edge: the trend rule</span>
     <p class="p" style="font-size:13px">Hold the S&amp;P 500 while it closes a month at or above its 10-month average; otherwise hold T-bills. On data never used to design it, this kept returns similar and roughly halved the worst falls.</p>
-    ${n ? `<div class="row"><span>Now (${esc(n.month)})</span><b style="color:${n.in_stocks ? TONE.good : TONE.bad}">${n.in_stocks ? "In stocks" : "Out of stocks"}: ${f0(n.price)} vs ${f0(n.average)} (${pct(n.gap, 1)})</b></div>` : ""}
+    ${n ? `<div class="row"><span>At the ${esc(n.month)} close</span><b style="color:${n.in_stocks ? TONE.good : TONE.bad}">${n.in_stocks ? "In stocks" : "Out of stocks"}: ${f0(n.price)} vs ${f0(n.average)} (${pct(n.gap, 1)})</b></div>` : ""}
+    ${t.live ? `<div class="row"><span>Today (${esc(t.live.month)}, not yet a close)</span><b style="color:${t.live.in_stocks ? TONE.good : TONE.bad}">${t.live.in_stocks ? "Above" : "Below"}: ${f0(t.live.price)} vs ${f0(t.live.average)} (${pct(t.live.gap, 1)})</b></div>` : ""}
     <span class="dim" style="font-size:12px">Rule vs buy and hold: annual return · Sharpe · worst fall</span>${rows}
     ${(t.decades || []).length ? `<details><summary class="dim" style="cursor:pointer">Decade by decade (is it still working?)</summary>
       ${t.decades.map(d => `<div class="row"><span>${esc(d.decade)} <span class="dim">(out ${Math.round(d.out_share * 100)}% of months, ${d.switches} switches)</span></span>
         <b>${pct(d.rule_cagr, 1)} · ${pct(d.rule_maxdd, 0)} <span class="dim" style="font-weight:400">vs ${pct(d.bh_cagr, 1)} · ${pct(d.bh_maxdd, 0)}</span></b></div>`).join("")}
       <span class="dim" style="font-size:11px">Annual return · worst fall, rule vs buy and hold. The edge is protection: look for smaller worst falls, decade after decade.</span></details>` : ""}
-    <span class="dim" style="font-size:11px">Judged on month-end closes; a break during the month counts only if it holds at the close. After ${((t.cost_per_switch || 0) * 100).toFixed(2)}% per switch${(t.periods[t.periods.length - 1] || {}).switches_per_year != null ? ` (about ${t.periods[t.periods.length - 1].switches_per_year.toFixed(1)} a year recently)` : ""}; price returns plus T-bill interest, no taxes.</span></section>`;
+    <span class="dim" style="font-size:11px">Judged on month-end closes; a break during the month counts only if it holds at the close. After ${((t.cost_per_switch || 0) * 100).toFixed(2)}% per switch${(t.periods[t.periods.length - 1] || {}).switches_per_year != null ? ` (about ${t.periods[t.periods.length - 1].switches_per_year.toFixed(1)} a year recently)` : ""}; ${t.total_return ? "total returns (dividends included) and T-bill interest when out" : "price returns plus T-bill interest"}, no taxes.</span></section>`;
 }
 function labCard(lab) {
   if (!lab || !(lab.results || []).length) return "";
@@ -260,8 +266,11 @@ function labCard(lab) {
         <span style="display:flex;gap:6px;flex:none">${a ? pill("3m " + VLABEL(a.verdict), VT[a.verdict] || "neutral") : ""}${b ? pill("12m " + VLABEL(b.verdict), VT[b.verdict] || "neutral") : ""}</span></div>
       <span class="dim" style="font-size:11px">3m skill ${esc(one.early)} ${fmtSkill(a && a.early_skill)} · ${esc(one.late)} ${fmtSkill(a && a.late_skill)} (luck level ${fmtSkill(a && a.placebo_p95)})${w} · ${esc(one.reference)}</span></div>`;
   }).join("");
+  const solid = [];
+  Object.entries(by).forEach(([name, hs]) => [3, 12].forEach(h => { if (hs[h] && hs[h].verdict === "Solid") solid.push(`${name} (${h}m)`); }));
   return `<section style="display:flex;flex-direction:column;gap:8px"><h2>Research lab <span class="dim" style="font-weight:400">(retested weekly)</span></h2>
-    <p class="p" style="font-size:13px">${esc(lab.protocol)}</p>${rows}<span class="dim" style="font-size:11px">"No evidence yet" means it could be luck: treat it as not working. Last run ${esc((lab.generated || "").slice(0, 10))}.</span></section>`;
+    <p class="p" style="font-size:13px">${Object.keys(by).length} signals retested. Solid: ${esc(solid.join("; ") || "none")}. The rest show no evidence yet.</p>
+    <details><summary class="dim" style="cursor:pointer">Every signal and the method</summary><p class="p" style="font-size:13px">${esc(lab.protocol)}</p>${rows}</details><span class="dim" style="font-size:11px">"No evidence yet" means it could be luck: treat it as not working. Last run ${esc((lab.generated || "").slice(0, 10))}.</span></section>`;
 }
 function contextCard(tc) {
   if (!tc || !tc.triggers) return "";
@@ -283,8 +292,8 @@ function contextCard(tc) {
 }
 function buyCard(c, combo, since80, tr) {
   const trig = (c.triggers || []).map(t => `${t.rule.toLowerCase()} (now: ${t.now})`).join("; or ");
-  const n = (tr || {}).now;
-  const lead = n ? (n.in_stocks
+  const n = (tr || {}).now, lvn = (tr || {}).live;
+  const lead = n ? (lvn && lvn.in_stocks !== n.in_stocks ? `At the ${n.month} close the trend rule was ${n.in_stocks ? "supportive" : "defensive"}; today's reading is on the other side, so it may switch at the month-end close. ` : "") + (n.in_stocks
       ? `The one proven short-term signal, the trend rule, is supportive: the S&P 500 is ${pct(n.gap, 1)} above its 10-month average. `
       : `The one proven short-term signal, the trend rule, is defensive: the S&P 500 is ${pct(n.gap, 1)} below its 10-month average, which has historically meant weaker odds and deeper dips over the next 1 to 3 months. `) : "";
   const ic = c.inflation_check || {};
@@ -296,7 +305,8 @@ function buyCard(c, combo, since80, tr) {
       + (since80.length ? `, yet since 1980 ${since80.filter(x => x.next12 > 0).length} of ${since80.length} episodes ended higher` : "") + ". " : "";
     body = `History does not say "don't buy"; it says expect a rougher ride. ${hist}These signals have been better at flagging deeper dips than at calling direction. The moments that have reliably marked better entry points: ${trig}. Spreading purchases over time lowers the risk of buying just before a deeper dip.`;
   } else body = "No proven warning or re-entry signal is on, so history points to roughly normal odds: gains in about 7 of 10 years.";
-  return `<section class="card"><span class="dim">Is now a good time to buy?</span><p class="p">${esc(lead + body + infl)}</p>
+  const pv = c.live && c.live.differs ? ` If the month closed today the stance would read ${c.live.level}; it is decided at the month-end close.` : "";
+  return `<section class="card"><span class="dim">Is now a good time to buy?</span><p class="p">${esc(lead + body + infl + pv)}</p>
     <span class="dim" style="font-size:11px">What past data shows, not a recommendation.</span></section>`;
 }
 
@@ -359,9 +369,103 @@ function financialsCard(t) {
     ${row("Shares bought back", f.buybacks_year == null ? null : money(f.buybacks_year))}
     ${f.balance_date ? `<span class="dim" style="font-size:12px;margin-top:4px">Balance sheet, ${fdate(f.balance_date)}</span>` : ""}
     ${row("Cash", f.cash == null ? null : money(f.cash), f.cash_share == null ? "" : ` <span class="dim" style="font-weight:400">${pct(f.cash_share, 0, false)} of assets</span>`)}
-    ${row("Liabilities", f.liabilities == null ? null : money(f.liabilities), f.liabilities_share == null ? "" : ` <span class="dim" style="font-weight:400">${pct(f.liabilities_share, 0, false)} of assets</span>`)}
+    ${row(f.liabilities_estimated ? "Liabilities (assets minus equity)" : "Liabilities", f.liabilities == null ? null : money(f.liabilities), f.liabilities_share == null ? "" : ` <span class="dim" style="font-weight:400">${pct(f.liabilities_share, 0, false)} of assets</span>`)}
     ${row("Share count vs a year ago", sc)}
     <span class="dim" style="font-size:11px">First-reported figures from SEC filings. Context, not a signal: in the 2026 tests none of these figures predicted returns for S&amp;P 500 stocks after costs.</span></section>`;
+}
+function keyDates(extra = []) {
+  const kd = [...(S.summary.key_dates || []), ...extra].filter(e => e && e.date).sort((a, b) => a.date < b.date ? -1 : 1).slice(0, 6);
+  if (!kd.length) return "";
+  const when = d => d == null ? "" : d <= 0 ? "today" : d === 1 ? "tomorrow" : `in ${d} days`;
+  return `<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:2px">${kd.map(e => `<div title="${esc(e.why || "")}" style="flex:none;min-width:128px;max-width:170px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;font-size:12px;background:var(--card)">
+    <b style="color:var(--ink)">${fdate(e.date)}</b><span style="color:var(--ink2)">${esc(e.name)}</span><span class="dim">${when(e.days)}</span></div>`).join("")}</div>`;
+}
+function guideStep(i, x) {
+  return `<div style="display:flex;gap:10px;align-items:flex-start">
+    <span style="flex:none;width:22px;height:22px;border-radius:50%;background:${TONE[x.tone] || TONE.neutral};color:#0B1424;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center">${i}</span>
+    <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><div class="row" style="gap:8px;align-items:center"><b style="font-size:13px;color:var(--ink)">${esc(x.title)}</b>${pill(x.status, x.tone)}</div>
+      <span style="font-size:13px;line-height:1.45;color:var(--ink2)">${esc(x.text)}</span></div></div>`;
+}
+function marketSteps() {
+  const m = S.summary.market || {}, c = m.criteria || {}, tr = m.trend_rule || {}, n = tr.now, lv = tr.live;
+  const me = (S.summary.key_dates || []).find(e => e.kind === "month_end");
+  const meTxt = me ? fdate(me.date) : "the month-end";
+  const steps = [];
+  if (n) {
+    const flip = lv && lv.in_stocks !== n.in_stocks;
+    let txt = `At the ${n.month} close the S&P 500 was ${pct(Math.abs(n.gap), 1, false)} ${n.in_stocks ? "above" : "below"} its 10-month average.`;
+    if (lv) txt += flip ? ` Today it is ${pct(Math.abs(lv.gap), 1, false)} ${lv.in_stocks ? "above" : "below"}: if the month closes there (${meTxt}), the rule ${lv.in_stocks ? "moves back into stocks" : "moves to T-bills"}.`
+                        : ` Today it is ${pct(Math.abs(lv.gap), 1, false)} ${lv.in_stocks ? "above" : "below"}, the same side.`;
+    steps.push({title: "Market trend (the tested lever)", status: flip ? (n.in_stocks ? "Supportive, could turn" : "Defensive, could turn") : (n.in_stocks ? "Supportive" : "Defensive"),
+                tone: flip ? "warn" : (n.in_stocks ? "good" : "bad"), text: txt});
+  }
+  const vix = (c.triggers || []).find(x => /VIX/.test(x.rule)), ic = c.inflation_check || {};
+  if (vix) {
+    const inflTxt = ic.cpi == null ? "" : ic.high ? ` Inflation is ${pct(ic.cpi, 1, false)}: at 4% or more the signal has been much weaker.` : ` Inflation is ${pct(ic.cpi, 1, false)}, below 4%: the stronger case if it fires.`;
+    if (vix.gap != null && vix.gap <= 0 && vix.provisional) steps.push({title: "Re-entry signal", status: "Watching", tone: "warn", text: `${vix.now}: counts only if the month closes at 30 or above (${meTxt}).${inflTxt}`});
+    else if (c.level === "Recovery window") steps.push({title: "Re-entry signal", status: "On", tone: "good", text: `A tested re-entry signal is on at the ${c.confirmed_month || "last"} close: historically better odds over the next 6 to 24 months.${inflTxt}`});
+    else steps.push({title: "Re-entry signal", status: "Not on", tone: "neutral", text: `${vix.now}; it needs a month-end close of 30 or above, or the credit spread to widen 0.5 points in 6 months.`});
+  }
+  const val = (m.drivers || []).find(d => d.name === "Valuation");
+  if (val) steps.push({title: "Long run (3–5 years)", status: val.on ? "Expensive" : "Not stretched", tone: val.on ? "bad" : "good",
+                       text: val.on ? `${val.text}. From high valuations, 3 to 5-year returns have been below average.` : val.text});
+  steps.push({title: "What is not an edge", status: "Context", tone: "neutral",
+              text: "The 12-month direction (no model beats the base rate), stock picking signals and earnings timing all failed testing. See Tested and rejected."});
+  return steps;
+}
+function marketDecision() {
+  const m = S.summary.market || {}, c = m.criteria || {}, tr = m.trend_rule || {}, n = tr.now, lv = tr.live;
+  const vix = (c.triggers || []).find(x => /VIX/.test(x.rule));
+  const me = (S.summary.key_dates || []).find(e => e.kind === "month_end");
+  const out = [];
+  const trendOut = n && !n.in_stocks, liveOut = lv ? !lv.in_stocks : trendOut;
+  if (c.level === "Recovery window") out.push("A tested re-entry window is on: history favours adding risk for a 6 to 24-month view, expecting a bumpy ride.");
+  else if (trendOut || liveOut) out.push("For new money, history favours going in stages over the next 1 to 3 months rather than all at once; the rule's edge has been avoiding the deepest falls.");
+  else out.push("No tested reason to delay: the trend is intact and no warning signal is on.");
+  if (vix && vix.provisional && vix.gap != null && vix.gap <= 0) out.push(`Watch the ${me ? fdate(me.date) : "month-end"} close: a VIX of 30 or more then would turn on the re-entry signal.`);
+  if (n && lv && n.in_stocks && !lv.in_stocks) out.push("The trend rule switches only if the month closes below its average.");
+  const val = (m.drivers || []).find(d => d.name === "Valuation");
+  if (val && val.on) out.push("Over 3 to 5 years, expect below-average returns from today's valuation.");
+  return out.join(" ");
+}
+function guidePanel(title, steps, decision, extraDates = []) {
+  return `<section class="card" style="gap:10px"><div class="row" style="align-items:center"><b style="font-size:16px;color:var(--ink)">${esc(title)}</b><span class="dim" style="font-size:12px">Prices to ${esc(fdate(S.summary.prices_to))}</span></div>
+    ${steps.map((x, i) => guideStep(i + 1, x)).join("")}
+    <div class="note"><b>Quick decision:</b> ${esc(decision)}</div>
+    <span class="dim" style="font-size:12px">Key dates</span>${keyDates(extraDates)}
+    <span class="dim" style="font-size:11px">What tested history supports, not a recommendation.</span></section>`;
+}
+function stockGuide(t) {
+  const m = t.metrics || {}, ev = t.risk_evidence, e = t.earnings, steps = [];
+  const ms = marketSteps()[0];
+  if (ms) steps.push({...ms, title: "Market trend (the tested lever, for the S&P)"});
+  const b = m.beta, dip = ev ? ev.dip : null;
+  if (b != null || dip != null) {
+    const big = (b != null && b >= 1.3) || (dip != null && dip <= -0.25);
+    steps.push({title: `${t.symbol}'s own risk`, status: big ? "High" : (b != null && b < 0.8 ? "Lower" : "Moderate"), tone: big ? "bad" : (b != null && b < 0.8 ? "good" : "warn"),
+                text: (b != null ? `Moves about ${b.toFixed(1)}× the market (if the S&P falls 10%, typically ${pct(-0.1 * b, 0)}).` : "")
+                      + (dip != null ? ` In past months like now its worst dip within 12 months averaged ${pct(dip, 0)} (S&P ${pct(ev.spx_dip, 0)}).` : "")});
+  }
+  if (e && e.next && e.next.date) {
+    const d = e.next.days, soon = d != null && d >= 0 && d <= 14;
+    steps.push({title: "Earnings", status: soon ? `In ${d} days` : "Not soon", tone: soon ? "warn" : "good",
+                text: soon ? `Results expected about ${fdate(e.next.date)}. A typical results-day move is ±${(e.typical_move * 100).toFixed(1)}% against the S&P; in tests, waiting until after cost nothing on average.`
+                           : `Next results expected about ${fdate(e.next.date)} (in ${d} days). Typical results-day move ±${(e.typical_move * 100).toFixed(1)}%.`});
+  }
+  steps.push({title: "What is not an edge here", status: "Context", tone: "neutral",
+              text: "Its own trend, its past behaviour in market states, and its company figures did not predict single-stock returns in 2026 tests: use them to understand it, not to time it."});
+  const tr = (S.summary.market || {}).trend_rule || {}, n = tr.now, lv = tr.live;
+  const parts = [];
+  if (n && !n.in_stocks && lv && lv.in_stocks) parts.push("the market trend is defensive but could turn back at the month-end close, so buying in stages is the cautious choice");
+  else if (n && !n.in_stocks) parts.push("the market trend is defensive, so history favours buying in stages");
+  else if (n && lv && !lv.in_stocks) parts.push("the market trend could turn defensive at the month-end close, so buying in stages is the cautious choice");
+  else parts.push("the market trend gives no tested reason to wait");
+  if (dip != null) parts.push(`size it for a dip of about ${pct(dip, 0)}${b != null ? ` (it moves ${b.toFixed(1)}× the market)` : ""}`);
+  else if (b != null) parts.push(`it moves ${b.toFixed(1)}× the market, so size it accordingly`);
+  if (e && e.next && e.next.days != null) parts.push(e.next.days >= 0 && e.next.days <= 14 ? `results are due in about ${e.next.days} days, and waiting until after costs nothing on average` : "no results are due in the next two weeks");
+  const decision = `If you are buying ${t.symbol}: ` + parts.join("; ") + ".";
+  const extra = e && e.next && e.next.date ? [{date: e.next.date, name: `${t.symbol} results (estimated)`, days: e.next.days}] : [];
+  return guidePanel(`Quick guide: ${t.symbol}`, steps, decision, extra);
 }
 function testedCard(list) {
   if (!list || !list.length) return "";
@@ -387,15 +491,19 @@ function assetBuyCard(t) {
   const c = (S.summary.market || {}).criteria || {}, m = t.metrics || {}, ev = t.risk_evidence;
   const trig = (c.triggers || []).map(x => `${x.rule.toLowerCase()} (now: ${x.now})`).join("; or ");
   const parts = [];
-  if (c.level === "High risk" || c.level === "Elevated risk") parts.push(`The market backdrop is ${c.level.toLowerCase()}: history points to a rougher ride rather than a predictable fall.`);
-  else if (c.level === "Recovery window") parts.push("The market backdrop is a recovery window, historically one of the better times to add risk.");
-  else parts.push("The market backdrop is normal, with no proven warning signal on.");
+  const stockNote = t.kind === "stock" ? " That evidence is for the S&P as a whole; in 2026 tests the S&P's trend did not carry over to single stocks." : "";
+  if (c.level === "High risk" || c.level === "Elevated risk") parts.push(`The market backdrop is ${c.level.toLowerCase()}: history points to a rougher ride rather than a predictable fall.${stockNote}`);
+  else if (c.level === "Recovery window") parts.push(`The market backdrop is a recovery window, historically one of the better times to add risk.${stockNote}`);
+  else parts.push(`The market backdrop is normal, with no proven warning signal on.${stockNote}`);
   if (ev) parts.push(`In ${ev.episodes} past episodes like now, ${t.symbol} rose within 12 months ${pct(ev.rose, 0, false)} of the time (versus ${pct(ev.rose_other, 0, false)} otherwise), and its average worst dip was ${pct(ev.dip)} against ${pct(ev.spx_dip)} for the S&P.`);
   const L = t.market_link, st = L && L.spx_trend_broken_now != null ? L.by_trend[L.spx_trend_broken_now ? "broken" : "intact"] : null;
   if (st) parts.push(`When the S&P's trend was ${L.spx_trend_broken_now ? "broken" : "intact"}, as now, ${t.symbol} averaged ${pct(st.asset, 1)} a month against ${pct(st.spx, 1)} for the S&P.`);
   if (t.evidence) parts.push(t.evidence.text);
-  if (m.above_200d === false) parts.push(`Its own trend is negative (below its 200-day average${m.sma200 ? ", about " + m.sma200.toLocaleString() : ""}); momentum research finds that prices below their long-term trend have tended to keep lagging in the short run.`);
-  else if (m.above_200d) parts.push("Its own trend is positive (above its 200-day average), which momentum research counts in its favour short term.");
+  if (t.kind === "stock") {
+    if (m.above_200d === false) parts.push(`Its own trend is negative (below its 200-day average${m.sma200 ? ", about " + m.sma200.toLocaleString() : ""}). In 2026 tests on S&P 500 stocks, a stock's own trend did not predict its next 1 to 3 months after costs.`);
+    else if (m.above_200d) parts.push("Its own trend is positive (above its 200-day average). In 2026 tests on S&P 500 stocks, a stock's own trend did not predict its next 1 to 3 months after costs.");
+  } else if (m.above_200d === false) parts.push(`Its own trend is negative (below its 200-day average${m.sma200 ? ", about " + m.sma200.toLocaleString() : ""}); trend research on indices and sectors finds that prices below their long-term trend have tended to lag in the short run.`);
+  else if (m.above_200d) parts.push("Its own trend is positive (above its 200-day average), which trend research on indices and sectors counts in its favour short term.");
   if (m.beta != null && m.beta > 1.1) parts.push(`It moves about ${m.beta.toFixed(1)}× the market, so expect larger swings both ways.`);
   if ((c.level === "High risk" || c.level === "Elevated risk") && trig) parts.push(`Market moments that have marked better entry points: ${trig}.`);
   return `<section class="card"><span class="dim">Is now a good time to buy ${esc(t.symbol)}?</span><p class="p">${esc(parts.join(" "))}</p>
@@ -430,6 +538,7 @@ function renderAsset(t, opts = {}) {
   const b = m.beta;
   return (t.live ? `<div class="note">Live lookup from prices: ${esc(t.symbol)} is not in the daily list, so the sector and SEC fundamentals layers are missing.
       <button class="btn primary" type="button" id="addWatch" style="margin-top:8px">Add ${esc(t.symbol)} to watchlist</button></div>` : "")
+    + (t.kind === "stock" && !t.live ? stockGuide(t) : "")
     + `<section class="card"><div class="row" style="font-size:15px"><b style="font-size:20px;color:var(--ink)">${esc(t.name)} <span class="dim" style="font-size:14px;font-weight:500">${esc(t.symbol)}</span></b>
       <span class="dim">${esc(t.sector || (t.kind === "stock" ? "" : t.kind.toUpperCase()))}</span></div>
       <div class="row"><span>Last ${esc(m.date || "")}</span><b style="color:var(--ink)">${m.price == null ? "n/a" : m.price.toLocaleString(undefined, {maximumFractionDigits: 2})} <span style="color:${(m.chg_1d || 0) >= 0 ? TONE.good : TONE.bad}">${pct(m.chg_1d, 1)}</span></b></div>
@@ -459,7 +568,7 @@ function renderAsset(t, opts = {}) {
       : `Explain the ${t.symbol} view in plain English: what each layer shows, what drives each horizon, and what history says about buying now.`, t.symbol)}
     <section style="display:flex;flex-direction:column;gap:8px"><h2>What would flip the view</h2>
       ${t.flips.map(f => `<div class="mini"><b style="font-size:14px">${esc(f.name)}</b><span class="dim" style="font-size:13px">${esc(f.text)}</span></div>`).join("")}</section>
-    <section class="reading"><span style="font-size:12px;color:#93C5FD">How to read it</span><p>${esc(opts.reading || "Start with the layers: the more of them point the same way, the stronger the view. Only tags marked Proven or Research-backed rest on tested evidence.")}</p></section>`;
+    <section class="reading"><span style="font-size:12px;color:#93C5FD">How to read it</span><p>${esc(opts.reading || "Start with the layers: the more of them point the same way, the stronger the view. Only tags marked Proven or Research-backed rest on tested evidence." + (t.kind === "stock" ? " For single stocks, the 2026 tests found no tested timing edge: the market's trend rule and the stock's risk and earnings dates are what to act on." : ""))}</p></section>`;
 }
 async function loadAsset(sym) {
   const u = S.bySym[sym.toUpperCase()];

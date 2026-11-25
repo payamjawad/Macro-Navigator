@@ -88,3 +88,38 @@ def test_forward_test_uses_only_months_after_registration(tmp_path):
     assert 6 <= len(out["picks_now"]) <= 10 and out["status"].startswith("Collecting") is (out["months"] < 36)
     none = composite.forward_test(tmp_path, C, members, None, None, reg_path=tmp_path / "missing.json")
     assert none["registered"] is False
+
+
+def test_dividends_lift_buy_and_hold():
+    idx = pd.date_range("1950-01-31", "2025-12-31", freq="ME")
+    rng = np.random.default_rng(4)
+    spx = pd.Series(100 * np.exp(np.cumsum(rng.normal(0.005, 0.04, len(idx)))), index=idx)
+    P0 = pd.DataFrame({"fred:TB3MS": 4.0}, index=idx)
+    P1 = P0.assign(**{"shiller:P": spx, "shiller:D": spx * 0.03})                     # 3% dividend yield
+    a, b = engine.trend_rule(spx, P0), engine.trend_rule(spx, P1)
+    assert b["total_return"] and not a["total_return"]
+    assert b["periods"][0]["buy_hold"]["cagr"] - a["periods"][0]["buy_hold"]["cagr"] == pytest.approx(0.03, abs=0.006)
+
+
+def test_trend_rule_live_reading_mid_month():
+    idx = pd.date_range("2000-01-31", "2026-11-30", freq="ME")
+    spx = pd.Series(np.linspace(100, 300, len(idx)), index=idx)
+    spx.iloc[-1] = 200                                                                  # a sharp fall in the unfinished month
+    out = engine.trend_rule(spx, pd.DataFrame({"fred:TB3MS": 3.0}, index=idx), month_complete=False)
+    assert out["now"]["in_stocks"] and out["now"]["month"] == "Oct 2026"
+    assert out["live"]["in_stocks"] is False and out["live"]["month"] == "Nov 2026"
+
+
+def test_key_dates_are_upcoming_and_include_the_month_end():
+    import build_site
+    D = pd.DataFrame({"px:^GSPC": [1.0, 2.0]}, index=pd.to_datetime(["2026-11-24", "2026-11-25"]))
+    kd = build_site.key_dates(D)
+    assert kd[0]["kind"] == "month_end" or any(e["kind"] == "month_end" for e in kd)
+    assert all(e["days"] >= 0 for e in kd) and [e["date"] for e in kd] == sorted(e["date"] for e in kd)
+
+
+def test_liabilities_estimated_when_not_reported():
+    f = _facts()
+    f = f[f.key != "liabilities"].sort_values(["key", "end", "filed"]).groupby(["key", "end"], as_index=False).first()
+    s = company.summarize(f, pd.Timestamp("2026-04-01"))
+    assert s["liabilities"] == pytest.approx(600) and s["liabilities_estimated"]

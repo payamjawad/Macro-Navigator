@@ -386,6 +386,28 @@ def risk_evidence(asset_m: pd.Series, spx_m: pd.Series, flag: pd.Series | None) 
             "rose": fnum((on.a_fwd > 0).mean()), "rose_other": fnum((df[df.f == 0].a_fwd > 0).mean())}
 
 
+def key_dates(D: pd.DataFrame, n: int = 6) -> list:
+    """Upcoming scheduled events (config/key_dates.json) plus this month's closing day, when the month-end signals are set."""
+    today = pd.Timestamp.today().normalize()
+    if "px:^GSPC" in D and D["px:^GSPC"].notna().any():
+        today = max(today, D["px:^GSPC"].dropna().index[-1].normalize())
+    me = today + pd.offsets.BMonthEnd(0)
+    out = [{"date": str(me.date()), "kind": "month_end", "name": "Month-end close",
+            "why": "Decides the trend rule and the VIX re-entry trigger for the month"}]
+    p = ROOT / "config" / "key_dates.json"
+    if p.exists():
+        try:
+            for e in json.loads(p.read_text()).get("events", []):
+                if pd.Timestamp(e["date"]) >= today:
+                    out.append({k: e.get(k) for k in ("date", "kind", "name", "why")})
+        except Exception:
+            pass
+    out.sort(key=lambda e: e["date"])
+    for e in out:
+        e["days"] = int((pd.Timestamp(e["date"]) - today).days)
+    return out[:n]
+
+
 def market_link(asset_m: pd.Series, spx_m: pd.Series, broken: pd.Series, vix_flag: pd.Series | None) -> dict | None:
     """How this asset actually behaved in the S&P 500's situations (the S&P is where the signals are tested)."""
     a = asset_m.reindex(spx_m.index)
@@ -499,8 +521,13 @@ def ticker_view(item: dict, prices: pd.DataFrame, spx: pd.Series, fund: dict, ec
         head = ("High risk, amplified", "bad")
     short = {"good": ("Momentum with it", "good"), "bad": ("Momentum against it", "bad")}.get(trend_tone, ("No clear momentum", "neutral"))
     aligned = nb >= len(layers) - 1 or ng >= len(layers) - 1
+    if kind == "stock":                       # 2026 tests: neither the stock's own trend nor the S&P's carried over to single stocks
+        short = (short[0].replace("Momentum with it", "Own trend with it").replace("Momentum against it", "Own trend against it")
+                 .replace("No clear momentum", "No clear trend") + " (not a tested edge)", "neutral", "No proven edge")
+    else:
+        short = (short[0], short[1], "Research-backed")
     horizons = [
-        {"h": "1–3 months", "text": short[0], "tone": short[1], "tag": "Research-backed"},
+        {"h": "1–3 months", "text": short[0], "tone": short[1], "tag": short[2]},
         {"h": "6–12 months", "text": "Layers aligned, untested" if aligned else "Unclear: layers disagree", "tone": "neutral",
          "tag": "No proven edge"},
         {"h": "3–5 years", "text": "Set by the business" if kind == "stock" else "Depends on valuation", "tone": "warn",
@@ -518,7 +545,8 @@ def ticker_view(item: dict, prices: pd.DataFrame, spx: pd.Series, fund: dict, ec
     b = m.get("beta")
     reading = (f"{'Near term' if kind == 'stock' else 'Short term'}, {nb} of {len(layers)} layers lean against it and {ng} support it"
                + (f"; it tends to move about {b:.1f}× the market" if b is not None else "") + ". "
-               + ("Longer term, the business decides." if kind == "stock" else "Over years, valuation matters most."))
+               + ("Longer term, the business decides. In 2026 tests none of these layers predicted single-stock returns after "
+                  "costs: use them for context and position size, not timing." if kind == "stock" else "Over years, valuation matters most."))
     return {"symbol": s, "name": item.get("n") or s, "kind": kind, "sector": item.get("sector"), "sector_etf": etf,
             "metrics": m, "sector_metrics": sector_m, "fundamentals": f, "market_link": link, "evidence": evidence_badge(kind, m),
             "earnings": (ctx or {}).get("earn", {}).get(s), "financials": (ctx or {}).get("fin", {}).get(s),
@@ -543,8 +571,9 @@ def build(store: Path, out: Path, skip_network: bool = False) -> dict:
     spx_last = D["px:^GSPC"].dropna().iloc[-1] if "px:^GSPC" in D and D["px:^GSPC"].notna().any() else None
     if m10 is not None and spx_last is not None:
         drivers.append({"name": "Trend", "on": bool(spx_last < m10),
-                        "text": f"S&P 500 {spx_last:,.0f} vs its 10-month average {m10:,.0f}: "
-                                + ("below, so the trend is broken" if spx_last < m10 else "above, so the trend is intact")})
+                        "text": f"S&P 500 {spx_last:,.0f} today vs its 10-month average {m10:,.0f}: "
+                                + ("below" if spx_last < m10 else "above")
+                                + " (the rule counts only month-end closes)"})
     from engine import cape_updated
     cape = cape_updated(P, spx_m0).dropna()
     if len(cape):
@@ -622,6 +651,7 @@ def build(store: Path, out: Path, skip_network: bool = False) -> dict:
     except Exception as err:
         print(f"  company data unavailable ({err.__class__.__name__}: {err})")
     market["forward_test"] = fwd
+    summary["key_dates"] = key_dates(D)
     market["tested_rejected"] = tested
     S, spx_m = build_signals(P)
     ma10 = spx_m.rolling(10).mean()
