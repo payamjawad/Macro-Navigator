@@ -35,6 +35,9 @@ TESTED_REJECTED = [
      "result": "All fail since 2013 (momentum, residual momentum, 52-week high, industry momentum, three reversal types, "
                "low MAX, low volatility, seasonality). MAX and seasonality faded after publication; low volatility "
                "lowers risk but not return."},
+    {"study": "Buying dips by recession risk", "tests": 6, "period": "S&P 500 1928-2026, Nasdaq 1971-2026",
+     "result": "10% and 20% dips bought when the real-time recession gauge read Low did not beat dips bought at Watch or High, nor buying every "
+               "dip (S&P 500: -4.7% a year in 12 threshold variants). Markets usually bottom during recessions, so warnings did not mark worse entries."},
     {"study": "About 600 home-made price, volume, event and fundamental ideas", "tests": 600, "period": "1996-2026",
      "result": "None survived the holdout (1 qualified in discovery, then +0.3% a year). Broad themes carry over weakly "
                "(rank correlation +0.22 price, +0.41 fundamentals) but too weakly to trade after costs."},

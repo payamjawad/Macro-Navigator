@@ -147,3 +147,24 @@ test("chat uses a live-looked-up asset sent by the app", async () => {
   assert.match(sent.systemInstruction.parts[0].text, /"symbol":"ZETA"/);
   assert.deepEqual(d.check.unmatched, []);
 });
+
+test("live quote falls back to Stooq when Yahoo refuses", async () => {
+  const csv = sym => "Date,Open,High,Low,Close,Volume\n" + Array.from({length: 400}, (_, i) => {
+    const d = new Date(Date.UTC(2025, 0, 1) + i * 86400000).toISOString().slice(0, 10);
+    const base = sym === "^spx" ? 5000 : 20;
+    return `${d},1,1,1,${(base * (1 + 0.001 * i + 0.01 * Math.sin(i))).toFixed(2)},100`;
+  }).join("\n");
+  globalThis.fetch = async url => {
+    if (url.includes("yahoo")) return new Response("Too Many Requests", {status: 429});
+    const s = decodeURIComponent(url.split("s=")[1].split("&")[0]);
+    if (s === "nope.us") return new Response("No data", {status: 200});
+    return new Response(csv(s));
+  };
+  const r = await quote({request: new Request("https://mn.pages.dev/api/quote?s=sofi"), env: env()});
+  assert.equal(r.status, 200);
+  const v = await r.json();
+  assert.equal(v.symbol, "SOFI"); assert.ok(v.metrics.price > 0); assert.match(v.reading, /Stooq/);
+  assert.equal(v.horizons[0].tag, "No proven edge");
+  const miss = await quote({request: new Request("https://mn.pages.dev/api/quote?s=NOPE"), env: env()});
+  assert.equal(miss.status, 404);
+});

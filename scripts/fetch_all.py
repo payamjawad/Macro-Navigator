@@ -97,6 +97,9 @@ FRED = {
     "GACDFSA066MSFRBPHI": ("growth", "M", "Philadelphia Fed activity index (1968-)"),
     "PERMIT": ("growth", "M", "Building permits (1960-)"),
     "HOUST": ("growth", "M", "Housing starts (1959-)"),
+    "HTRUCKSSAAR": ("growth", "M", "Heavy truck sales (1967-)"),
+    "AWHMAN": ("growth", "M", "Average weekly hours, manufacturing (1939-)"),
+    "UMCSENT": ("growth", "M", "University of Michigan consumer sentiment (1952-)"),
     "GDPC1": ("growth", "Q", "Real GDP (1947-)"),
     "USREC": ("growth", "M", "NBER recession indicator (1854-)"),
     "RECPROUSM156N": ("growth", "M", "Smoothed recession probability, Chauvet-Piger (1967-)"),
@@ -128,7 +131,7 @@ FRED = {
     "IRLTLT01JPM156N": ("global", "M", "Japan 10-year yield (1989-)"),
 }
 ARCHIVED = {"BAMLH0A0HYM2", "BAMLH0A3HYC", "BAMLC0A0CM"}       # never drop old rows
-VINTAGE_SERIES = ["PAYEMS", "UNRATE", "CPILFESL", "PCEPILFE", "INDPRO", "GDPC1"]
+VINTAGE_SERIES = ["PAYEMS", "UNRATE", "CPILFESL", "PCEPILFE", "INDPRO", "GDPC1", "PERMIT", "HTRUCKSSAAR", "AWHMAN"]
 
 YAHOO = [
     # long-history indices and market internals
@@ -306,6 +309,16 @@ def fetch_fred_series(sess, limiter, sid, key, out_dir, full):
     save(merged.rename(sid), path)
     added = len(merged) - (0 if old_s is None else len(old_s))
     return sid, merged, (f"ok (+{max(added, 0)} rows)" if old_s is not None else "ok") + via, time.time() - t0
+
+
+def vintages_due(out_dir: Path, days: float = 6.5) -> bool:
+    """First-release data change rarely: refresh them about once a week (and whenever one is missing)."""
+    folder = out_dir / "fred_first_release"
+    for sid in VINTAGE_SERIES:
+        hits = list(folder.glob(f"{sid}.*")) if folder.exists() else []
+        if not hits or (time.time() - max(h.stat().st_mtime for h in hits)) / 86400 > days:
+            return True
+    return False
 
 
 def fetch_vintage(sess, limiter, sid, key, out_dir):
@@ -646,7 +659,7 @@ def run_groups(groups, out, args, key, safe=False) -> list[dict]:
     jobs = []
     if "fred" in groups:
         jobs += [("fred", sid, fetch_fred_series, (sess, limiter, sid, key, out, args.full)) for sid in FRED]
-        if args.vintages and key:
+        if (args.vintages or vintages_due(out)) and key:
             jobs += [("fred", f"vintage:{sid}", fetch_vintage, (sess, limiter, sid, key, out)) for sid in VINTAGE_SERIES]
     if "files" in groups:
         jobs += [("files", name, fetch_file, (sess, name, out, args.full, manual)) for name in FILES]

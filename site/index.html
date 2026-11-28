@@ -12,13 +12,14 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0B1424;--card:#121D33;--line:#23324F;--line2:#2C3D5E;--ink:#E7EEF8;--ink2:#C9D5E6;--mute:#8798B3;--blue:#2563EB;--blue2:#3B82F6;
 --good:#34D399;--warn:#FBBF24;--bad:#F87171;--panel:#16294D;color-scheme:dark}
 *{box-sizing:border-box}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:'Public Sans',system-ui,-apple-system,sans-serif;font-variant-numeric:tabular-nums;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',system-ui,-apple-system,sans-serif;font-variant-numeric:tabular-nums;-webkit-text-size-adjust:100%}
 main{max-width:860px;margin:0 auto;padding:calc(14px + env(safe-area-inset-top,0px)) 16px calc(28px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px}
 a{color:#93C5FD}
 h2{margin:6px 0 0;font-size:16px;font-weight:700}
@@ -69,6 +70,56 @@ h2{margin:6px 0 0;font-size:16px;font-weight:700}
 #asof{white-space:nowrap}
 .foot{font-size:11px;line-height:1.45;color:var(--mute);margin:0}
 @media (prefers-reduced-motion:no-preference){.ai.wait p{animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{opacity:.45}}}
+/* reading band */
+.hero{display:flex;flex-direction:column;gap:6px;padding:18px 2px 6px}
+.hero-k{font-size:13px;color:var(--mute)}
+.hero-w{font-family:'IBM Plex Sans Condensed','IBM Plex Sans',system-ui,sans-serif;font-weight:700;font-size:clamp(40px,11vw,60px);line-height:1;letter-spacing:-.01em}
+.hero-p{margin:2px 0 0;font-size:15px;line-height:1.5;color:var(--ink2);max-width:62ch}
+.readings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px}
+@media(max-width:420px){.readings{grid-template-columns:1fr}}
+.rd{display:flex;flex-direction:column;gap:2px;padding:4px 0 4px 12px;border-left:3px solid var(--edge);min-width:0}
+.rd-l{font-size:12px;color:var(--mute)}
+.rd-v{font-family:'IBM Plex Sans Condensed','IBM Plex Sans',sans-serif;font-size:19px;font-weight:600;color:var(--ink);line-height:1.2}
+.rd-s{font-size:12px;color:var(--mute)}
+/* quick guide */
+.guide{display:flex;flex-direction:column;gap:12px;background:var(--card);border-radius:16px;padding:16px}
+.gs{display:flex;flex-direction:column;gap:3px;padding-left:12px;border-left:3px solid var(--edge)}
+.gs-h{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.gs-h b{font-size:14px;color:var(--ink);font-weight:600}
+.gs > span{font-size:13.5px;line-height:1.5;color:var(--ink2);max-width:70ch}
+.decide{background:var(--panel);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+.decide b{font-size:13px;color:#93C5FD;font-weight:600}
+.decide p{margin:0;font-size:14.5px;line-height:1.5;color:var(--ink)}
+.kd{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.kdi{flex:none;min-width:124px;display:flex;flex-direction:column;gap:1px;font-size:12px;padding:6px 10px;border-radius:10px;background:var(--bg)}
+.kdi b{color:var(--ink);font-weight:600}.kdi span{color:var(--ink2)}
+/* sections */
+.secs{display:flex;flex-direction:column;background:var(--card);border-radius:16px;overflow:hidden}
+.sec{border-top:1px solid var(--line)}.sec:first-child{border-top:0}
+.sec summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:1fr auto 16px;gap:10px;align-items:center;padding:14px 16px;min-height:52px}
+.sec summary::-webkit-details-marker{display:none}
+.sec summary:focus-visible{outline:2px solid #93C5FD;outline-offset:-2px}
+.sec-t{font-size:15px;font-weight:600;color:var(--ink)}
+.sec-a{font-size:13px;text-align:right;max-width:48vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chev{color:var(--mute)}
+@media (prefers-reduced-motion:no-preference){.chev{transition:transform .18s ease}}
+.sec[open] .chev{transform:rotate(180deg)}
+.sec-b{padding:0 16px 18px;display:flex;flex-direction:column;gap:10px}
+.sec-b > .card,.sec-b > section{background:none;border:0;padding:0;border-radius:0}
+.sec-b > .card > b:first-child,.sec-b > .card > span.dim:first-child,.sec-b h2{display:none}
+.sec-b .mini{background:var(--bg);border:0}
+.sub{margin:6px 0 0;font-size:13px;font-weight:600;color:var(--mute)}
+.more summary{cursor:pointer;font-size:13px;color:#93C5FD;padding:4px 0}
+/* odds bars */
+.odds{display:grid;grid-template-columns:72px 1fr auto;gap:4px 10px;align-items:center}
+.odds-h{font-size:13px;color:var(--mute)}
+.odds-bar{height:8px;border-radius:4px;background:var(--bg);overflow:hidden}.odds-bar i{display:block;height:100%;background:var(--good)}
+.odds-v{font-size:14px;color:var(--ink);font-weight:600;white-space:nowrap}
+.odds-r{grid-column:2 / 4;font-size:12px;color:var(--mute)}
+.pillars{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.pl{display:flex;flex-direction:column;gap:3px;padding-left:10px;border-left:3px solid var(--edge)}
+.pl b{font-size:15px}.pl span:last-child{font-size:13px;line-height:1.45;color:var(--ink2)}
+.stance{font-family:'IBM Plex Sans Condensed','IBM Plex Sans',sans-serif}
 </style>
 </head>
 <body>
@@ -143,27 +194,25 @@ function renderHeader() {
 
 // ------------------------------------------------------------------ economy
 function renderEconomy() {
-  const e = S.summary.economy;
-  return `<section class="card"><span class="dim">Economic regime</span>
-      <span class="stance" style="font-size:26px;color:${TONE[e.tone]}">${esc(e.regime)}</span><p class="p">${esc(e.text)}</p></section>
-    ${(e.why || []).length ? `<section class="card"><span class="dim">Why this regime</span>
-      <b style="font-size:14px">${esc(e.rule || "")}</b>
-      ${e.why.map(w => `<div style="font-size:13px;line-height:1.45;color:var(--ink2)">• ${esc(w)}</div>`).join("")}</section>` : ""}
-    <section class="grid2" aria-label="Four pillars">${e.pillars.map(p => `<div class="mini"><span class="dim">${esc(p.name)}</span>
-      <span style="font-size:17px;font-weight:700;color:${TONE[p.tone]}">${esc(p.label)}</span>
-      <span style="font-size:13px;line-height:1.4;color:var(--ink2)">${esc(p.detail)}</span></div>`).join("")}</section>
-    <div class="wide2">
-    <section class="card"><span class="dim">Where today sits versus history</span>
-      ${e.history.map(h => `<div class="row"><span>${esc(h.name)}</span><b style="color:${Math.abs(h.z || 0) >= 1.5 ? TONE.bad : "var(--ink)"}">${h.z == null ? "n/a" : minus((h.z > 0 ? "+" : "") + h.z.toFixed(1)) + " sd"}</b></div>`).join("")}
-      <div class="row"><span>Recession odds, 12 months</span><b>${e.recession_prob == null ? "n/a" : "about " + Math.round(e.recession_prob * 100) + "%"}</b></div>
-      <p class="dim" style="margin:0;line-height:1.45">Recession odds: NY Fed yield-curve model. Useful for the economy; unproven for timing stocks.</p></section>
-    <section style="display:flex;flex-direction:column;gap:8px"><h2>What would change this read</h2>
-      ${e.watch.map(w => `<div class="mini" style="flex-direction:row;justify-content:space-between;align-items:center">
-        <div style="display:flex;flex-direction:column;gap:2px"><b style="font-size:14px">${esc(w.name)}</b><span class="dim">${esc(w.rule)}</span></div>
-        <b style="font-size:13px;color:var(--ink2);white-space:nowrap">Now ${esc(w.now)}</b></div>`).join("")}</section>
-    </div>
-    ${explainBox("economy", "Explain today's economic regime in plain English for a non-expert: what each pillar shows, why it gets this label, and what it means for stock markets.", "")}
-    <a class="btn primary" href="#sp500" style="justify-content:center;text-decoration:none">What this means for the S&amp;P 500</a>`;
+  const e = S.summary.economy, w = S.summary.recession_watch, cv = (w || {}).curve;
+  const pillars = `<div class="pillars">${e.pillars.map(p => `<div class="pl" style="--edge:${TONE[p.tone]}"><span class="dim">${esc(p.name)}</span>
+      <b style="color:${TONE[p.tone]}">${esc(p.label)}</b><span>${esc(p.detail)}</span></div>`).join("")}</div>`;
+  const why = (e.why || []).length ? `<b style="font-size:14px">${esc(e.rule || "")}</b>${e.why.map(x => `<p class="p">${esc(x)}</p>`).join("")}` : "";
+  const hist = `${e.history.map(h => `<div class="row"><span>${esc(h.name)}</span><b style="color:${Math.abs(h.z || 0) >= 1.5 ? TONE.bad : "var(--ink)"}">${h.z == null ? "n/a" : minus((h.z > 0 ? "+" : "") + h.z.toFixed(1)) + " sd from normal"}</b></div>`).join("")}
+    <div class="row"><span>Recession odds, NY Fed yield-curve model</span><b>${e.recession_prob == null ? "n/a" : "about " + Math.round(e.recession_prob * 100) + "%"}</b></div>`;
+  const change = e.watch.map(x => `<div class="row"><span>${esc(x.name)}: ${esc(x.rule)}</span><b>Now ${esc(x.now)}</b></div>`).join("");
+  const curveRd = cv ? {label: "Yield curve", value: cv.state.replace(" after an inversion", ""), tone: cv.state === "Inverted" ? "bad" : cv.state === "Normal" ? "good" : "warn",
+                        sub: `10-year minus 3-month ${minus((cv.spread_10y_3m >= 0 ? "+" : "") + cv.spread_10y_3m.toFixed(2))} pts`} : null;
+  const infl = e.pillars.find(p => /nflation/.test(p.name));
+  return hero("Economy", e.regime, e.tone, firstSentence(e.text), [watchReading(w), curveRd, infl ? {label: "Inflation", value: infl.label, tone: infl.tone} : null])
+    + `<div class="secs">`
+    + sec("Recession watch", recessionAnswer(w), w ? LTONE[w.level] : "neutral", recessionCard(w), true)
+    + sec("The four pillars", e.pillars.map(p => p.label).join(", "), e.tone, pillars, true)
+    + sec("Why this regime", "", "neutral", why)
+    + sec("Today versus history", "", "neutral", hist)
+    + sec("What would change this read", "", "neutral", change)
+    + sec("Explain with AI", "Plain English", "neutral", explainBox("economy", "Explain today's economic regime in plain English for a non-expert: what each pillar shows, why it gets this label, and what it means for stock markets.", ""))
+    + `</div><a class="btn primary" href="#sp500" style="justify-content:center;text-decoration:none">What this means for the S&amp;P 500</a>`;
 }
 
 // ------------------------------------------------------------------ S&P 500
@@ -206,34 +255,43 @@ function renderMarket() {
     "Recovery window": "A proven re-entry signal is on: historically one of the better times to add risk.",
     "Normal": "No proven warning or re-entry signal is on. History says expect roughly normal odds."}[c.level] || "";
   const live = c.live || {}, meD = (S.summary.key_dates || []).find(e => e.kind === "month_end");
-  const prov = live.differs ? `<div class="note">Confirmed at the ${esc(c.confirmed_month || "last")} close. If ${esc(meD ? new Date(meD.date + "T12:00:00Z").toLocaleDateString(undefined, {month: "long"}) : "this month")} closed today it would read <b>${esc(live.level)}</b>. Changing: ${esc((live.changing || []).join(" · "))}. The stance changes only at the month-end close${meD ? ", " + esc(fdate(meD.date)) : ""}.</div>`
-    : (c.month_complete === false ? `<span class="dim" style="font-size:12px">Confirmed at the ${esc(c.confirmed_month || "last")} close; today's readings point the same way.</span>` : "");
-  return `${guidePanel("Quick guide: the market", marketSteps(), marketDecision())}
-    <section class="card"><span class="dim">Market stance</span><span class="stance" style="font-size:34px;color:${TONE[levelTone]}">${esc(c.level || "n/a")}</span>
-      ${meter}<p class="p">${esc(c.summary || "")}</p>${prov}</section>
-    ${(m.drivers || []).length ? `<section class="card"><span class="dim">What's driving the stance</span>
-      ${m.drivers.map(d => `<div style="font-size:14px;line-height:1.45"><b style="color:${d.on ? TONE.bad : TONE.good}">${esc(d.name)}:</b> ${esc(d.text)}</div>`).join("")}
-      <p class="p" style="font-size:13px">${esc(m.economy_link || "")}</p></section>` : ""}
-    ${horizonCards(horizons)}
-    ${buyCard(c, combo, since80, m.trend_rule)}
-    ${trendCard(m.trend_rule)}
-    <div class="wide2"><section style="display:flex;flex-direction:column;gap:8px"><h2>Why: signals on now</h2>
-      ${defOn.map(sig).join("") || `<div class="mini"><span class="p">No defensive signal is on.</span></div>`}
-      ${[...(c.defensive || []), ...(c.recovery || []), ...(c.short || [])].filter(d => d.now_live && !d.now).map(d => `<div class="mini"><b style="font-size:13px">${esc(d.signal)}</b><span class="dim" style="font-size:12px">On in today's reading, not yet at a month-end close.</span></div>`).join("")}
-      ${recOn.map(sig).join("")}
-      ${combo ? `<div class="mini"><b style="font-size:14px">Together: ${combo.eps} past episodes</b><span class="p" style="font-size:13px">Next 12 months averaged ${pct(combo.on_mean, 1)} vs ${pct(combo.off_mean, 1)} otherwise${since80.length ? `. Since 1980, ${since80.filter(x => x.next12 > 0).length} of ${since80.length} were followed by gains` : ""}.</span></div>` : ""}
-    </section>
-    <section style="display:flex;flex-direction:column;gap:8px"><h2>Re-entry triggers to watch</h2>${trig}${contextCard(m.trigger_context)}
-      <div class="mini"><b style="font-size:14px">Most similar past periods</b>
-        ${(a.episodes || []).map(x => `<div class="row"><span>${esc(x.closest)}</span><b style="color:${x.next12 > 0.03 ? TONE.good : x.next12 < -0.03 ? TONE.bad : "var(--ink)"}">${pct(x.next12, 1)}</b></div>`).join("")}
-        <span class="dim" style="line-height:1.45">Next-12-month outcome after each. Similar months averaged ${pct(a.mean, 1)}, positive ${pct(a.up, 0, false)} of the time.</span></div>
-      <div class="mini"><b style="font-size:14px">Model track record</b><span class="p" style="font-size:13px">${usable.length ? "Usable out of sample: " + esc(usable.join(", ")) : "No model has a proven 12-month edge out of sample since 1975, so odds shown are the historical base rate."}</span></div>
-    </section></div>
-    ${labCard(m.research)}
-    ${forwardCard(m.forward_test)}
-    ${testedCard(m.tested_rejected)}
-    ${explainBox("sp500", "Explain the S&P 500 view in plain English: what drives the stance, what each horizon means, and what history says about buying now.", "")}
-    <section class="reading"><span style="font-size:12px;color:#93C5FD">The reading</span><p>${esc(reading)}</p></section>`;
+  const prov = live.differs ? `<div class="note">Confirmed at the ${esc(c.confirmed_month || "last")} close. If ${esc(meD ? new Date(meD.date + "T12:00:00Z").toLocaleDateString(undefined, {month: "long"}) : "this month")} closed today it would read <b>${esc(live.level)}</b>. Changing: ${esc((live.changing || []).join(", "))}. The stance changes only at the month-end close${meD ? ", " + esc(fdate(meD.date)) : ""}.</div>`
+    : (c.month_complete === false ? `<span class="dim">Confirmed at the ${esc(c.confirmed_month || "last")} close; today's readings point the same way.</span>` : "");
+  const w = S.summary.recession_watch, tn = (m.trend_rule || {}).now, tl = (m.trend_rule || {}).live;
+  const tflip = tn && tl && tl.in_stocks !== tn.in_stocks;
+  const stanceBody = `<span class="stance" style="color:${TONE[levelTone]}">${esc(c.level || "n/a")}</span>${meter}<p class="p">${esc(c.summary || "")}</p>${prov}
+    ${(m.drivers || []).map(d => `<div class="row"><span>${esc(d.name)}</span><b style="color:${d.on ? TONE.bad : TONE.good};text-align:right">${esc(d.text)}</b></div>`).join("")}
+    <p class="dim" style="margin:0;line-height:1.45">${esc(m.economy_link || "")}</p>${horizonCards(horizons)}`;
+  const liveOnly = [...(c.defensive || []), ...(c.recovery || []), ...(c.short || [])].filter(d => d.now_live && !d.now);
+  const signalsBody = `<h3 class="sub">On at the last month-end close</h3>${defOn.map(sig).join("") || `<p class="p">No defensive signal is on.</p>`}${recOn.map(sig).join("")}
+    ${liveOnly.map(d => `<div class="mini"><b style="font-size:13px">${esc(d.signal)}</b><span class="dim">On in today's reading, not yet at a month-end close.</span></div>`).join("")}
+    ${combo ? `<div class="mini"><b style="font-size:14px">Together: ${combo.eps} past episodes</b><span class="p" style="font-size:13px">Next 12 months averaged ${pct(combo.on_mean, 1)} vs ${pct(combo.off_mean, 1)} otherwise.</span></div>` : ""}
+    <h3 class="sub">Re-entry triggers</h3>${trig}${contextCard(m.trigger_context)}
+    <h3 class="sub">Most similar past periods</h3>${(a.episodes || []).map(x => `<div class="row"><span>${esc(x.closest)}</span><b style="color:${x.next12 > 0.03 ? TONE.good : x.next12 < -0.03 ? TONE.bad : "var(--ink)"}">${pct(x.next12, 1)}</b></div>`).join("")}
+    <span class="dim">Next-12-month outcome after each. ${usable.length ? "Usable model: " + esc(usable.join(", ")) : "No model has a proven 12-month edge, so odds are the historical base rate."}</span>`;
+  const sp = sitItem("S&P 500"), nq = sitItem("Nasdaq-100");
+  const sitBody = (sp ? `<h3 class="sub">S&amp;P 500</h3>${situationCard(sp)}` : "") + (nq ? `<h3 class="sub">Nasdaq-100</h3>${situationCard(nq)}` : "");
+  const solid = labSolid(m.research), fw = m.forward_test || {};
+  return hero("S&P 500", c.level || "n/a", levelTone, firstSentence(c.summary), [trendReading(), watchReading(w), dipReading()])
+    + guidePanel(marketSteps(), marketDecision())
+    + `<div class="secs">`
+    + sec("Similar past situations", sp ? sitLine(sp) : "", "neutral", sitBody, true)
+    + sec("Recession watch", recessionAnswer(w), w ? LTONE[w.level] : "neutral", recessionCard(w))
+    + sec("Stance and what drives it", c.level, levelTone, stanceBody)
+    + sec("Trend rule, the tested lever", tn ? (tn.in_stocks ? "In stocks" : "In T-bills") + (tflip ? ", could switch" : "") : "", tflip ? "warn" : (tn && tn.in_stocks ? "good" : "bad"), trendCard(m.trend_rule))
+    + sec("Signals and re-entry triggers", defOn.length ? `${defOn.length} defensive on` : "No defensive signal on", defOn.length ? "bad" : "good", signalsBody)
+    + sec("Is now a good time to buy?", "What history shows", "neutral", buyCard(c, combo, since80, m.trend_rule))
+    + sec("Research lab", `${solid} solid signals`, "neutral", labCard(m.research))
+    + sec("Tested and rejected", "No stock-timing edge found", "neutral", testedCard(m.tested_rejected))
+    + sec("Forward test", fw.registered ? (fw.months ? `${fw.months} months tracked` : "Collecting data") : "Not registered", "neutral", forwardCard(m.forward_test))
+    + sec("Explain with AI", "Plain English", "neutral", explainBox("sp500", "Explain the S&P 500 view in plain English: what drives the stance, what each horizon means, and what history says about buying now.", ""))
+    + `</div>`;
+}
+function firstSentence(t) { const m = String(t || "").match(/^.*?[.!?](\s|$)/); return m ? m[0].trim() : String(t || ""); }
+function labSolid(lab) {
+  let n = 0;
+  ((lab || {}).results || []).forEach(r => { if (r && r.verdict === "Solid") n++; });
+  return n;
 }
 
 const fmtSkill = x => x == null ? "n/a" : minus((x > 0 ? "+" : "") + (x * 100).toFixed(1) + "%");
@@ -376,44 +434,122 @@ function financialsCard(t) {
     ${row("Share count vs a year ago", sc)}
     <span class="dim" style="font-size:11px">First-reported figures from SEC filings. Context, not a signal: in the 2026 tests none of these figures predicted returns for S&amp;P 500 stocks after costs.</span></section>`;
 }
+// ------------------------------------------------------------------ layout: reading band, sections, guide
+function sec(title, answer, tone, body, open = false) {
+  if (!body) return "";
+  return `<details class="sec"${open ? " open" : ""}><summary><span class="sec-t">${esc(title)}</span>
+    <span class="sec-a" style="color:${TONE[tone] || "var(--ink2)"}">${esc(answer || "")}</span><svg class="chev" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></summary>
+    <div class="sec-b">${body}</div></details>`;
+}
+function hero(kicker, word, tone, sentence, readings) {
+  return `<section class="hero"><span class="hero-k">${esc(kicker)}</span>
+    <span class="hero-w" style="color:${TONE[tone] || "var(--ink)"}">${esc(word)}</span>
+    ${sentence ? `<p class="hero-p">${esc(sentence)}</p>` : ""}
+    <div class="readings">${readings.filter(Boolean).map(r => `<div class="rd" style="--edge:${TONE[r.tone] || TONE.neutral}"><span class="rd-l">${esc(r.label)}</span>
+      <b class="rd-v">${esc(r.value)}</b>${r.sub ? `<span class="rd-s">${esc(r.sub)}</span>` : ""}</div>`).join("")}</div></section>`;
+}
+const LTONE = {Low: "good", Watch: "warn", High: "bad"};
+function watchReading(w) {
+  return w ? {label: "Recession risk", value: w.level, tone: LTONE[w.level], sub: `${w.warnings_on + w.confirmers_on} of ${w.warnings_avail + w.confirmers_avail} signals on`} : null;
+}
+function sitItem(name) { return (((S.summary.market || {}).situation || {}).indices || {})[name]; }
+function sitLine(it) {
+  if (!it) return "";
+  if (!it.outcomes) return `${it.index} near its high`;
+  const o = it.outcomes["6 months"];
+  return o ? `${Math.round(o.up * 100)}% higher after 6 months` : "";
+}
+function dipReading() {
+  const a = sitItem("S&P 500"), b = sitItem("Nasdaq-100");
+  if (!a && !b) return null;
+  const f = x => x ? `${x.index === "S&P 500" ? "S&P" : "Nasdaq-100"} ${pct(x.from_high, 1)}` : "";
+  const worst = [a, b].filter(Boolean).reduce((m, x) => Math.min(m, x.from_high), 0);
+  return {label: "Market dip", value: [f(a), f(b)].filter(Boolean).join(", "), tone: worst <= -0.1 ? "warn" : worst <= -0.05 ? "neutral" : "good", sub: "from 52-week highs"};
+}
+function trendReading() {
+  const tr = (S.summary.market || {}).trend_rule || {}, n = tr.now, lv = tr.live;
+  if (!n) return null;
+  const flip = lv && lv.in_stocks !== n.in_stocks;
+  return {label: "Trend rule", value: n.in_stocks ? "In stocks" : "In T-bills", tone: flip ? "warn" : (n.in_stocks ? "good" : "bad"),
+          sub: flip ? `could switch at month-end` : `since the ${n.month} close`};
+}
+function situationCard(it) {
+  if (!it) return "";
+  if (!it.outcomes) {
+    const a = it.any_day || {};
+    return `<p class="p">${esc(it.index)} is within 3% of its 52-week high. On any day since ${esc(it.since)}, it was higher 12 months later ${pct((a["12 months"] || {}).up, 0, false)} of the time.</p>`;
+  }
+  const rows = ["1 month", "3 months", "6 months", "12 months"].map(k => {
+    const o = it.outcomes[k];
+    if (!o) return "";
+    const w = Math.round(o.up * 100);
+    return `<div class="odds"><span class="odds-h">${k}</span><div class="odds-bar" role="img" aria-label="${w}% higher"><i style="width:${w}%"></i></div>
+      <b class="odds-v">${w}% higher</b><span class="odds-r">avg ${pct(o.mean, 1)}, typical range ${pct(o.p10, 0)} to ${pct(o.p90, 0)}</span></div>`;
+  }).join("");
+  const lo = it.low || {}, hi = it.watch_high || {};
+  const split = lo.n && hi.n ? `<p class="dim" style="margin:0;line-height:1.45">By recession reading at the time, 6 months later: Low ${pct((lo["6 months"] || {}).mean, 1)} (${lo.n} cases), Watch or High ${pct((hi["6 months"] || {}).mean, 1)} (${hi.n}). Tested: the reading did not reliably change these odds.</p>` : "";
+  return `<p class="p">${esc(it.index)} is ${pct(Math.abs(it.from_high), 1, false)} below its 52-week high. Since ${esc(it.since)} it first fell this far ${it.episodes} times. What happened next:</p>
+    ${rows}<div class="row"><span>Typical worst point within 6 months</span><b style="color:${TONE.bad}">${pct((it.worst6 || {}).median, 1)}</b></div>${split}`;
+}
+function recessionCard(w) {
+  if (!w) return "";
+  const on = w.signals.filter(s => s.on), off = w.signals.filter(s => s.on === false), na = w.signals.filter(s => s.on == null);
+  const odds = ["Low", "Watch", "High"].filter(l => w.odds[l]).map(l => `<div class="row"><span>${l}</span><b>${Math.round(w.odds[l].p12 * 100)}% <span class="dim" style="font-weight:400">recession within 12 months (${w.odds[l].months} months)</span></b></div>`).join("");
+  const cv = w.curve;
+  return `<p class="p">${on.length ? `On now: ${esc(on.map(s => s.name).join("; "))}.` : "No warning or confirming signal is on."} It read Watch or High before ${w.warned} of ${w.recessions} recessions since 1945.</p>
+    ${odds}
+    ${cv ? `<div class="row"><span>Yield curve (10-year minus 3-month)</span><b>${esc(cv.state)}, ${minus((cv.spread_10y_3m >= 0 ? "+" : "") + cv.spread_10y_3m.toFixed(2))} pts</b></div>` : ""}
+    <details class="more"><summary>Every signal</summary>${w.signals.map(s => `<div class="row"><span>${esc(s.name)}${s.kind === "confirmer" ? " (confirms a recession has begun)" : ""}</span><b style="color:${s.on ? TONE.bad : s.on === false ? TONE.good : "var(--mute)"}">${s.on ? "On" : s.on === false ? "Off" : "No data"}</b></div>`).join("")}</details>
+    <span class="dim" style="line-height:1.45">${esc(w.note)}</span>`;
+}
+function recessionAnswer(w) { return w ? `${w.level}: ${w.warnings_on + w.confirmers_on} of ${w.warnings_avail + w.confirmers_avail} signals on` : ""; }
+function afterDipsCard(t) {
+  const a = t.after_dips;
+  if (!a || a.too_few || !a["6 months"]) return a && a.too_few ? `<p class="p">Too few past market dips in ${esc(t.symbol)}'s history to compare.</p>` : "";
+  const r = k => a[k] ? `<div class="odds"><span class="odds-h">${k}</span><div class="odds-bar"><i style="width:${Math.round(a[k].up * 100)}%"></i></div>
+      <b class="odds-v">${Math.round(a[k].up * 100)}% higher</b><span class="odds-r">avg ${pct(a[k].mean, 1)} vs ${esc(a.index)} ${pct((a[k + " index"] || {}).mean, 1)}; beat it ${pct(a[k + " beat"], 0, false)} of the time</span></div>` : "";
+  return `<p class="p">The ${esc(a.index)} is ${pct(Math.abs(a.from_high || 0), 1, false)} below its high. After its ${a.episodes} past falls this deep, ${esc(t.symbol)} went on to:</p>
+    ${r("3 months")}${r("6 months")}${r("12 months")}
+    <div class="row"><span>Typical worst point within 6 months</span><b style="color:${TONE.bad}">${pct((a.worst6 || {}).median, 1)}</b></div>
+    <span class="dim" style="line-height:1.45">Today's companies only, so past winners are over-represented. Context for size and patience, not a timing signal.</span>`;
+}
+function afterDipsAnswer(t) {
+  const a = t.after_dips;
+  return a && a["6 months"] ? `${Math.round(a["6 months"].up * 100)}% higher after 6 months` : "";
+}
 function keyDates(extra = []) {
   const kd = [...(S.summary.key_dates || []), ...extra].filter(e => e && e.date).sort((a, b) => a.date < b.date ? -1 : 1).slice(0, 6);
   if (!kd.length) return "";
   const when = d => d == null ? "" : d <= 0 ? "today" : d === 1 ? "tomorrow" : `in ${d} days`;
-  return `<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:2px">${kd.map(e => `<div title="${esc(e.why || "")}" style="flex:none;min-width:128px;max-width:170px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;font-size:12px;background:var(--card)">
-    <b style="color:var(--ink)">${fdate(e.date)}</b><span style="color:var(--ink2)">${esc(e.name)}</span><span class="dim">${when(e.days)}</span></div>`).join("")}</div>`;
+  return `<div class="kd">${kd.map(e => `<div class="kdi" title="${esc(e.why || "")}"><b>${fdate(e.date)}</b><span>${esc(e.name)}</span><span class="dim">${when(e.days)}</span></div>`).join("")}</div>`;
 }
-function guideStep(i, x) {
-  return `<div style="display:flex;gap:10px;align-items:flex-start">
-    <span style="flex:none;width:22px;height:22px;border-radius:50%;background:${TONE[x.tone] || TONE.neutral};color:#0B1424;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center">${i}</span>
-    <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><div class="row" style="gap:8px;align-items:center"><b style="font-size:13px;color:var(--ink)">${esc(x.title)}</b>${pill(x.status, x.tone)}</div>
-      <span style="font-size:13px;line-height:1.45;color:var(--ink2)">${esc(x.text)}</span></div></div>`;
+function guideStep(x) {
+  return `<div class="gs" style="--edge:${TONE[x.tone] || TONE.neutral}"><div class="gs-h"><b>${esc(x.title)}</b>${pill(x.status, x.tone)}</div><span>${esc(x.text)}</span></div>`;
 }
 function marketSteps() {
-  const m = S.summary.market || {}, c = m.criteria || {}, tr = m.trend_rule || {}, n = tr.now, lv = tr.live;
+  const m = S.summary.market || {}, c = m.criteria || {}, tr = m.trend_rule || {}, n = tr.now, lv = tr.live, w = S.summary.recession_watch;
   const me = (S.summary.key_dates || []).find(e => e.kind === "month_end");
   const meTxt = me ? fdate(me.date) : "the month-end";
   const steps = [];
   if (n) {
     const flip = lv && lv.in_stocks !== n.in_stocks;
-    let txt = `At the ${n.month} close the S&P 500 was ${pct(Math.abs(n.gap), 1, false)} ${n.in_stocks ? "above" : "below"} its 10-month average.`;
-    if (lv) txt += flip ? ` Today it is ${pct(Math.abs(lv.gap), 1, false)} ${lv.in_stocks ? "above" : "below"}: if the month closes there (${meTxt}), the rule ${lv.in_stocks ? "moves back into stocks" : "moves to T-bills"}.`
-                        : ` Today it is ${pct(Math.abs(lv.gap), 1, false)} ${lv.in_stocks ? "above" : "below"}, the same side.`;
-    steps.push({title: "Market trend (the tested lever)", status: flip ? (n.in_stocks ? "Supportive, could turn" : "Defensive, could turn") : (n.in_stocks ? "Supportive" : "Defensive"),
-                tone: flip ? "warn" : (n.in_stocks ? "good" : "bad"), text: txt});
+    steps.push({title: "Market trend, the tested lever", status: flip ? (n.in_stocks ? "Supportive, could turn" : "Defensive, could turn") : (n.in_stocks ? "Supportive" : "Defensive"),
+      tone: flip ? "warn" : (n.in_stocks ? "good" : "bad"),
+      text: `At the ${n.month} close the S&P 500 was ${pct(Math.abs(n.gap), 1, false)} ${n.in_stocks ? "above" : "below"} its 10-month average.` + (lv ? (flip
+        ? ` Today it is ${pct(Math.abs(lv.gap), 1, false)} ${lv.in_stocks ? "above" : "below"}: if the month closes there (${meTxt}), the rule ${lv.in_stocks ? "moves back into stocks" : "moves to T-bills"}.`
+        : ` Today it is on the same side.`) : "")});
   }
-  const vix = (c.triggers || []).find(x => /VIX/.test(x.rule)), ic = c.inflation_check || {};
-  if (vix) {
-    const inflTxt = ic.cpi == null ? "" : ic.high ? ` Inflation is ${pct(ic.cpi, 1, false)}: at 4% or more the signal has been much weaker.` : ` Inflation is ${pct(ic.cpi, 1, false)}, below 4%: the stronger case if it fires.`;
-    if (vix.gap != null && vix.gap <= 0 && vix.provisional) steps.push({title: "Re-entry signal", status: "Watching", tone: "warn", text: `${vix.now}: counts only if the month closes at 30 or above (${meTxt}).${inflTxt}`});
-    else if (c.level === "Recovery window") steps.push({title: "Re-entry signal", status: "On", tone: "good", text: `A tested re-entry signal is on at the ${c.confirmed_month || "last"} close: historically better odds over the next 6 to 24 months.${inflTxt}`});
-    else steps.push({title: "Re-entry signal", status: "Not on", tone: "neutral", text: `${vix.now}; it needs a month-end close of 30 or above, or the credit spread to widen 0.5 points in 6 months.`});
-  }
+  if (w) steps.push({title: "Recession watch", status: w.level, tone: LTONE[w.level],
+    text: `${w.warnings_on + w.confirmers_on} of ${w.warnings_avail + w.confirmers_avail} signals on. Historically a recession began within 12 months ${Math.round(((w.odds[w.level] || {}).p12 || 0) * 100)}% of the time at this level.`});
+  const a = sitItem("S&P 500"), b = sitItem("Nasdaq-100");
+  const dipTxt = [a, b].filter(x => x && x.outcomes).map(x => `${x.index} ${pct(x.from_high, 1)}: higher 6 months later in ${Math.round((x.outcomes["6 months"] || {}).up * 100)}% of ${x.episodes} past falls this deep`).join(". ");
+  if (dipTxt) steps.push({title: "Market dip versus history", status: "Context", tone: "neutral", text: dipTxt + "."});
+  const vix = (c.triggers || []).find(x => /VIX/.test(x.rule));
+  if (vix && vix.gap != null && vix.gap <= 0 && vix.provisional) steps.push({title: "Re-entry signal", status: "Watching", tone: "warn", text: `${vix.now}: counts only if the month closes at 30 or above (${meTxt}).`});
+  else if (c.level === "Recovery window") steps.push({title: "Re-entry signal", status: "On", tone: "good", text: "A tested re-entry signal is on: historically better odds over the next 6 to 24 months."});
   const val = (m.drivers || []).find(d => d.name === "Valuation");
-  if (val) steps.push({title: "Long run (3–5 years)", status: val.on ? "Expensive" : "Not stretched", tone: val.on ? "bad" : "good",
-                       text: val.on ? `${val.text}. From high valuations, 3 to 5-year returns have been below average.` : val.text});
-  steps.push({title: "What is not an edge", status: "Context", tone: "neutral",
-              text: "The 12-month direction (no model beats the base rate), stock picking signals and earnings timing all failed testing. See Tested and rejected."});
+  if (val) steps.push({title: "Long run, 3 to 5 years", status: val.on ? "Expensive" : "Not stretched", tone: val.on ? "bad" : "good",
+    text: val.on ? `${val.text}. From high valuations, 3 to 5-year returns have been below average.` : val.text});
   return steps;
 }
 function marketDecision() {
@@ -423,53 +559,52 @@ function marketDecision() {
   const out = [];
   const trendOut = n && !n.in_stocks, liveOut = lv ? !lv.in_stocks : trendOut;
   if (c.level === "Recovery window") out.push("A tested re-entry window is on: history favours adding risk for a 6 to 24-month view, expecting a bumpy ride.");
-  else if (trendOut || liveOut) out.push("For new money, history favours going in stages over the next 1 to 3 months rather than all at once; the rule's edge has been avoiding the deepest falls.");
+  else if (trendOut || liveOut) out.push("For new money, history favours going in stages over the next 1 to 3 months rather than all at once.");
   else out.push("No tested reason to delay: the trend is intact and no warning signal is on.");
-  if (vix && vix.provisional && vix.gap != null && vix.gap <= 0) out.push(`Watch the ${me ? fdate(me.date) : "month-end"} close: a VIX of 30 or more then would turn on the re-entry signal.`);
-  if (n && lv && n.in_stocks && !lv.in_stocks) out.push("The trend rule switches only if the month closes below its average.");
+  const b = sitItem("Nasdaq-100") || sitItem("S&P 500");
+  if (b && b.outcomes) out.push(`Dips like today's usually recovered within months, but often fell another ${pct(Math.abs((b.worst6 || {}).median || 0), 0, false)} first.`);
+  if (vix && vix.provisional && vix.gap != null && vix.gap <= 0) out.push(`Watch the ${me ? fdate(me.date) : "month-end"} close for the VIX re-entry signal.`);
   const val = (m.drivers || []).find(d => d.name === "Valuation");
   if (val && val.on) out.push("Over 3 to 5 years, expect below-average returns from today's valuation.");
   return out.join(" ");
 }
-function guidePanel(title, steps, decision, extraDates = []) {
-  return `<section class="card" style="gap:10px"><div class="row" style="align-items:center"><b style="font-size:16px;color:var(--ink)">${esc(title)}</b><span class="dim" style="font-size:12px">Prices to ${esc(fdate(S.summary.prices_to))}</span></div>
-    ${steps.map((x, i) => guideStep(i + 1, x)).join("")}
-    <div class="note"><b>Quick decision:</b> ${esc(decision)}</div>
-    <span class="dim" style="font-size:12px">Key dates</span>${keyDates(extraDates)}
-    <span class="dim" style="font-size:11px">What tested history supports, not a recommendation.</span></section>`;
+function guidePanel(steps, decision, extraDates = []) {
+  return `<section class="guide">${steps.map(guideStep).join("")}
+    <div class="decide"><b>Quick decision</b><p>${esc(decision)}</p></div>
+    ${keyDates(extraDates)}
+    <span class="dim">What tested history supports, not a recommendation. Stock-picking signals and earnings timing failed testing (see Tested and rejected).</span></section>`;
 }
-function stockGuide(t) {
-  const m = t.metrics || {}, ev = t.risk_evidence, e = t.earnings, steps = [];
-  const ms = marketSteps()[0];
-  if (ms) steps.push({...ms, title: "Market trend (the tested lever, for the S&P)"});
-  const b = m.beta, dip = ev ? ev.dip : null;
-  if (b != null || dip != null) {
-    const big = (b != null && b >= 1.3) || (dip != null && dip <= -0.25);
-    steps.push({title: `${t.symbol}'s own risk`, status: big ? "High" : (b != null && b < 0.8 ? "Lower" : "Moderate"), tone: big ? "bad" : (b != null && b < 0.8 ? "good" : "warn"),
-                text: (b != null ? `Moves about ${b.toFixed(1)}× the market (if the S&P falls 10%, typically ${pct(-0.1 * b, 0)}).` : "")
-                      + (dip != null ? ` In past months like now its worst dip within 12 months averaged ${pct(dip, 0)} (S&P ${pct(ev.spx_dip, 0)}).` : "")});
-  }
+function stockSteps(t) {
+  const m = t.metrics || {}, e = t.earnings, a = t.after_dips, steps = [];
+  const ms = marketSteps();
+  const trend = ms.find(x => x.title.startsWith("Market trend")), rw = ms.find(x => x.title === "Recession watch");
+  if (trend) steps.push({...trend, title: "Market trend (for the S&P 500)"});
+  if (rw) steps.push(rw);
+  const b = m.beta;
+  if (a && a["6 months"]) steps.push({title: `${t.symbol} after past market dips`, status: `${Math.round(a["6 months"].up * 100)}% higher`, tone: a["6 months"].up >= 0.6 ? "good" : "warn",
+    text: `After the ${a.index}'s ${a.episodes} past falls like today's, ${t.symbol} was higher 6 months later ${Math.round(a["6 months"].up * 100)}% of the time (avg ${pct(a["6 months"].mean, 1)}), with a typical worst point of ${pct((a.worst6 || {}).median, 0)}.`});
+  if (b != null) steps.push({title: `${t.symbol}'s own risk`, status: b >= 1.3 ? "High" : b < 0.8 ? "Lower" : "Moderate", tone: b >= 1.3 ? "bad" : b < 0.8 ? "good" : "warn",
+    text: `Moves about ${b.toFixed(1)}× the market: if the S&P falls 10%, typically ${pct(-0.1 * b, 0)}.`});
   if (e && e.next && e.next.date) {
     const d = e.next.days, soon = d != null && d >= 0 && d <= 14;
     steps.push({title: "Earnings", status: soon ? `In ${d} days` : "Not soon", tone: soon ? "warn" : "good",
-                text: soon ? `Results expected about ${fdate(e.next.date)}. A typical results-day move is ±${(e.typical_move * 100).toFixed(1)}% against the S&P; in tests, waiting until after cost nothing on average.`
-                           : `Next results expected about ${fdate(e.next.date)} (in ${d} days). Typical results-day move ±${(e.typical_move * 100).toFixed(1)}%.`});
+      text: soon ? `Results about ${fdate(e.next.date)}; typical move ±${(e.typical_move * 100).toFixed(1)}%. Waiting until after cost nothing on average in tests.`
+                 : `Next results about ${fdate(e.next.date)} (in ${d} days); typical move ±${(e.typical_move * 100).toFixed(1)}%.`});
   }
-  steps.push({title: "What is not an edge here", status: "Context", tone: "neutral",
-              text: "Its own trend, its past behaviour in market states, and its company figures did not predict single-stock returns in 2026 tests: use them to understand it, not to time it."});
-  const tr = (S.summary.market || {}).trend_rule || {}, n = tr.now, lv = tr.live;
-  const parts = [];
-  if (n && !n.in_stocks && lv && lv.in_stocks) parts.push("the market trend is defensive but could turn back at the month-end close, so buying in stages is the cautious choice");
-  else if (n && !n.in_stocks) parts.push("the market trend is defensive, so history favours buying in stages");
-  else if (n && lv && !lv.in_stocks) parts.push("the market trend could turn defensive at the month-end close, so buying in stages is the cautious choice");
-  else parts.push("the market trend gives no tested reason to wait");
-  if (dip != null) parts.push(`size it for a dip of about ${pct(dip, 0)}${b != null ? ` (it moves ${b.toFixed(1)}× the market)` : ""}`);
-  else if (b != null) parts.push(`it moves ${b.toFixed(1)}× the market, so size it accordingly`);
-  if (e && e.next && e.next.days != null) parts.push(e.next.days >= 0 && e.next.days <= 14 ? `results are due in about ${e.next.days} days, and waiting until after costs nothing on average` : "no results are due in the next two weeks");
-  const decision = `If you are buying ${t.symbol}: ` + parts.join("; ") + ".";
-  const extra = e && e.next && e.next.date ? [{date: e.next.date, name: `${t.symbol} results (estimated)`, days: e.next.days}] : [];
-  return guidePanel(`Quick guide: ${t.symbol}`, steps, decision, extra);
+  return steps;
 }
+function stockDecision(t) {
+  const m = t.metrics || {}, e = t.earnings, a = t.after_dips;
+  const tr = (S.summary.market || {}).trend_rule || {}, n = tr.now, lv = tr.live, parts = [];
+  if (n && lv && n.in_stocks && !lv.in_stocks) parts.push("the market trend could turn defensive at month-end, so buying in stages is the cautious choice");
+  else if (n && !n.in_stocks) parts.push("the market trend is defensive, so history favours buying in stages");
+  else parts.push("the market trend gives no tested reason to wait");
+  if (a && a.worst6) parts.push(`after past dips like this it often fell another ${pct(Math.abs(a.worst6.median), 0, false)} before recovering`);
+  if (m.beta != null) parts.push(`size it for ${m.beta.toFixed(1)}× the market's swings`);
+  if (e && e.next && e.next.days != null) parts.push(e.next.days >= 0 && e.next.days <= 14 ? `results are due in about ${e.next.days} days` : "no results are due in the next two weeks");
+  return `If you are buying ${t.symbol}: ` + parts.join("; ") + ".";
+}
+
 function testedCard(list) {
   if (!list || !list.length) return "";
   return `<section style="display:flex;flex-direction:column;gap:8px"><h2>Tested and rejected <span class="dim" style="font-weight:400">(2026 studies, S&amp;P 500 members at the time)</span></h2>
@@ -538,41 +673,44 @@ function wireExplain() {
 
 // ------------------------------------------------------------------ index / stock view
 function renderAsset(t, opts = {}) {
-  const m = t.metrics || {}, ev = t.risk_evidence;
-  const b = m.beta;
-  return (t.live ? `<div class="note">Live lookup from prices: ${esc(t.symbol)} is not in the daily list, so the sector and SEC fundamentals layers are missing.
-      <button class="btn primary" type="button" id="addWatch" style="margin-top:8px">Add ${esc(t.symbol)} to watchlist</button></div>` : "")
-    + (t.kind === "stock" && !t.live ? stockGuide(t) : "")
-    + `<section class="card"><div class="row" style="font-size:15px"><b style="font-size:20px;color:var(--ink)">${esc(t.name)} <span class="dim" style="font-size:14px;font-weight:500">${esc(t.symbol)}</span></b>
-      <span class="dim">${esc(t.sector || (t.kind === "stock" ? "" : t.kind.toUpperCase()))}</span></div>
-      <div class="row"><span>Last ${esc(m.date || "")}</span><b style="color:var(--ink)">${m.price == null ? "n/a" : m.price.toLocaleString(undefined, {maximumFractionDigits: 2})} <span style="color:${(m.chg_1d || 0) >= 0 ? TONE.good : TONE.bad}">${pct(m.chg_1d, 1)}</span></b></div>
-      <span class="stance" style="color:${TONE[t.headline_tone]}">${esc(t.headline)}</span>
-      <div class="layerbar" aria-label="Layer tones">${t.layers.map(l => `<i style="background:${TONE[l.tone]}"></i>`).join("")}</div>
-      <p class="p">${esc(t.reading)}</p></section>
-    <div class="wide2"><section style="display:flex;flex-direction:column;gap:8px"><h2>The layers</h2>
-      ${t.layers.map((l, i) => `<div class="mini" style="flex-direction:row;justify-content:space-between;align-items:center;gap:10px">
-        <div style="display:flex;flex-direction:column;gap:2px"><span class="dim">${i + 1} · ${esc(l.name)}</span><b style="font-size:14px">${esc(l.text)}</b></div>
-        ${pill({good: "Tailwind", bad: "Headwind", warn: "Mixed", neutral: "Neutral"}[l.tone], l.tone)}</div>`).join("")}</section>
-    <section style="display:flex;flex-direction:column;gap:8px"><h2>Direction by horizon</h2>${horizonCards(t.horizons)}
-      <div class="mini"><b style="font-size:14px">Market risk it carries</b>
-        <div class="row"><span>Sensitivity to the S&amp;P 500 (beta)</span><b>${b == null ? "n/a" : b.toFixed(2)}</b></div>
-        <div class="row"><span>If the S&amp;P falls 10%, typical move</span><b style="color:${b != null && b < 0 ? TONE.good : TONE.bad}">${b == null ? "n/a" : pct(-0.1 * b, 0)}</b></div>
-        <div class="row"><span>Moves explained by the market</span><b>${m.r2 == null ? "n/a" : Math.round(m.r2 * 100) + "%"}</b></div>
-        <div class="row"><span>Returns: 1m · 3m · 12m</span><b>${pct(m.ret_1m)} · ${pct(m.ret_3m)} · ${pct(m.ret_12m)}</b></div></div>
-      ${ev ? `<div class="mini"><b style="font-size:14px">In past months like now (${ev.episodes} episodes)</b>
-        <div class="row"><span>Average worst dip within 12 months</span><b style="color:${TONE.bad}">${pct(ev.dip)} <span class="dim" style="font-weight:400">S&amp;P ${pct(ev.spx_dip)}</span></b></div>
-        <div class="row"><span>Rose within 12 months</span><b>${pct(ev.rose, 0, false)} <span class="dim" style="font-weight:400">vs ${pct(ev.rose_other, 0, false)} otherwise</span></b></div></div>` : ""}
-    </section></div>
-    ${linkCard(t)}
-    ${earningsCard(t)}
-    ${financialsCard(t)}
-    ${assetBuyCard(t)}
-    ${explainBox("asset_" + t.symbol, t.symbol === "^NDX"
-      ? "Explain the Nasdaq 100 view in plain English: how it differs from the S&P 500, what each layer and horizon means, and what history says about buying now."
-      : `Explain the ${t.symbol} view in plain English: what each layer shows, what drives each horizon, and what history says about buying now.`, t.symbol)}
-    <section style="display:flex;flex-direction:column;gap:8px"><h2>What would flip the view</h2>
-      ${t.flips.map(f => `<div class="mini"><b style="font-size:14px">${esc(f.name)}</b><span class="dim" style="font-size:13px">${esc(f.text)}</span></div>`).join("")}</section>
-    <section class="reading"><span style="font-size:12px;color:#93C5FD">How to read it</span><p>${esc(opts.reading || "Start with the layers: the more of them point the same way, the stronger the view. Only tags marked Proven or Research-backed rest on tested evidence." + (t.kind === "stock" ? " For single stocks, the 2026 tests found no tested timing edge: the market's trend rule and the stock's risk and earnings dates are what to act on." : ""))}</p></section>`;
+  const m = t.metrics || {}, ev = t.risk_evidence, b = m.beta, isStock = t.kind === "stock", w = S.summary.recession_watch;
+  const liveNote = t.live ? `<div class="note">Live price lookup: ${esc(t.symbol)} is not in the daily list, so earnings, company figures and the sector layer are missing. To include it every day, add it to config/watchlist.txt in your GitHub repository.</div>` : "";
+  const price = m.price == null ? "n/a" : m.price.toLocaleString(undefined, {maximumFractionDigits: 2});
+  const e = t.earnings, f = t.financials, ad = t.after_dips;
+  const readings = isStock
+    ? [{label: "Its swings", value: b == null ? "n/a" : `${b.toFixed(1)}× the market`, tone: b != null && b >= 1.3 ? "warn" : "neutral", sub: "if the S&P moves 10%"},
+       e && e.next && e.next.date ? {label: "Next results", value: fdate(e.next.date), tone: e.next.days != null && e.next.days <= 14 ? "warn" : "neutral", sub: e.next.days != null ? `in ${e.next.days} days` : ""} : watchReading(w),
+       ad && ad["6 months"] ? {label: "After market dips", value: `${Math.round(ad["6 months"].up * 100)}% higher`, tone: ad["6 months"].up >= 0.6 ? "good" : "warn", sub: "6 months later"} : trendReading()]
+    : [trendReading(), watchReading(w), dipReading()];
+  const layers = `${t.layers.map(l => `<div class="row"><span>${esc(l.name)}</span><b style="text-align:right">${esc(l.text)} ${pill({good: "Tailwind", bad: "Headwind", warn: "Mixed", neutral: "Neutral"}[l.tone], l.tone)}</b></div>`).join("")}
+    ${horizonCards(t.horizons)}`;
+  const risk = `<div class="row"><span>Sensitivity to the S&amp;P 500 (beta)</span><b>${b == null ? "n/a" : b.toFixed(2)}</b></div>
+    <div class="row"><span>If the S&amp;P falls 10%, typical move</span><b style="color:${b != null && b < 0 ? TONE.good : TONE.bad}">${b == null ? "n/a" : pct(-0.1 * b, 0)}</b></div>
+    <div class="row"><span>Moves explained by the market</span><b>${m.r2 == null ? "n/a" : Math.round(m.r2 * 100) + "%"}</b></div>
+    <div class="row"><span>Return over 1, 3 and 12 months</span><b>${pct(m.ret_1m)}, ${pct(m.ret_3m)}, ${pct(m.ret_12m)}</b></div>
+    ${ev ? `<div class="row"><span>Worst dip within 12 months, in ${ev.episodes} past months like now</span><b style="color:${TONE.bad}">${pct(ev.dip)} <span class="dim" style="font-weight:400">S&amp;P ${pct(ev.spx_dip)}</span></b></div>` : ""}
+    ${linkCard(t)}`;
+  const flips = t.flips.map(x => `<div class="row"><span>${esc(x.name)}</span><b style="font-weight:500;text-align:right">${esc(x.text)}</b></div>`).join("");
+  const nq = t.symbol === "^NDX" ? sitItem("Nasdaq-100") : null;
+  const guide = isStock && !t.live ? guidePanel(stockSteps(t), stockDecision(t), e && e.next && e.next.date ? [{date: e.next.date, name: `${t.symbol} results (estimated)`, days: e.next.days}] : [])
+              : (t.symbol === "^NDX" ? guidePanel(marketSteps(), marketDecision()) : "");
+  return liveNote
+    + hero(`${t.name} (${t.symbol})${t.sector ? ", " + t.sector : ""}`, price, (m.chg_1d || 0) >= 0 ? "good" : "bad",
+           `${pct(m.chg_1d, 1)} on the day, ${pct(m.from_high, 0)} from its 52-week high. ${t.headline}${isStock ? " (context, not a tested signal)" : ""}.`, readings)
+    + guide
+    + `<div class="secs">`
+    + (isStock ? sec("After past market dips like today's", afterDipsAnswer(t), ad && ad["6 months"] && ad["6 months"].up >= 0.6 ? "good" : "neutral", afterDipsCard(t), true) : "")
+    + (nq ? sec("Similar past situations", sitLine(nq), "neutral", situationCard(nq), true) : "")
+    + sec("Layers and direction", t.headline, t.headline_tone, layers)
+    + sec("Market risk", b == null ? "" : `${b.toFixed(1)}× the market`, b != null && b >= 1.3 ? "warn" : "neutral", risk)
+    + (e ? sec("Earnings", e.next && e.next.date ? `Next about ${fdate(e.next.date)}` : "", e.next && e.next.days != null && e.next.days <= 14 ? "warn" : "neutral", earningsCard(t)) : "")
+    + (f ? sec("Company financials", f.unavailable ? "Not available" : (f.revenue_growth != null ? `Revenue ${pct(f.revenue_growth, 0)} on a year ago` : ""), "neutral", financialsCard(t)) : "")
+    + sec("Is now a good time to buy?", "What history shows", "neutral", assetBuyCard(t))
+    + sec("What would change the view", "", "neutral", flips)
+    + sec("Explain with AI", "Plain English", "neutral", explainBox("asset_" + t.symbol, t.symbol === "^NDX"
+        ? "Explain the Nasdaq 100 view in plain English: how it differs from the S&P 500, what each layer and horizon means, and what history says about buying now."
+        : `Explain the ${t.symbol} view in plain English: what each layer shows, what drives each horizon, and what history says about buying now.`, t.symbol))
+    + `</div><p class="dim" style="margin:0;line-height:1.5">${esc(opts.reading || (isStock ? "For single stocks, the 2026 tests found no tested timing edge: the market's trend rule, the stock's risk and its earnings dates are what to act on." : "Only tags marked Proven or Research-backed rest on tested evidence."))}</p>`;
 }
 async function loadAsset(sym) {
   const u = S.bySym[sym.toUpperCase()];
@@ -596,9 +734,8 @@ async function renderStock(sym) {
     try { const r = await fetch("api/quote?s=" + encodeURIComponent(sym)); if (r.ok) { t = await r.json(); S.liveAsset = t; } } catch (e) {}
     if (t) return renderAsset(t);
   }
-  if (!t) return `<section class="card"><b style="font-size:16px">${esc(sym)} is not in today's list</b>
-      <p class="p">Each run covers the S&amp;P 500, the Nasdaq 100 and your watchlist. Add ${esc(sym)} to the watchlist and it appears after the next refresh.</p>
-      <button class="btn primary" type="button" id="addWatch" style="align-self:flex-start">Add ${esc(sym)} to watchlist</button></section>` + picker;
+  if (!t) return `<section class="card"><b style="font-size:16px">No prices found for ${esc(sym)}</b>
+      <p class="p">${esc(sym)} is not in the daily list (S&amp;P 500, Nasdaq-100 and your watchlist), and neither Yahoo nor Stooq returned prices for it. Check the ticker: US listings use the plain symbol, for example SOFI or PLTR. To include a stock every day, add it to config/watchlist.txt in your GitHub repository.</p></section>` + picker;
   localStorage.setItem("mn_recent", JSON.stringify([sym, ...recent.filter(s => s !== sym)].slice(0, 8)));
   return renderAsset(t);
 }
@@ -676,12 +813,14 @@ async function draw() {
 const ALIAS = {TSMC: "TSM", TAIWAN: "TSM", GOOGLE: "GOOGL", ALPHABET: "GOOGL", FACEBOOK: "META", BERKSHIRE: "BRK-B", NOVO: "NVO"};
 function resolve(q) {
   const up = q.toUpperCase().replace(/^\$/, "").trim().replace(/\./g, "-");
-  if (S.bySym[up]) return up;
-  if (ALIAS[up] && S.bySym[ALIAS[up]]) return ALIAS[up];
+  if (S.bySym[up]) return up;                                            // exact ticker in the daily list
+  if (ALIAS[up]) return ALIAS[up];                                       // known nickname (TSMC, GOOGLE ...)
   const l = q.toLowerCase().trim();
-  const byName = S.universe.filter(u => (u.n || "").toLowerCase().startsWith(l)).concat(
-    S.universe.filter(u => (u.n || "").toLowerCase().includes(l)));
-  return byName.length ? byName[0].s : (ALIAS[up] || up);
+  const starts = S.universe.find(u => (u.n || "").toLowerCase().startsWith(l));
+  if (starts && l.length >= 3) return starts.s;                          // company name ("apple", "nvidia")
+  if (/^[A-Z][A-Z0-9-]{0,5}$/.test(up)) return up;                        // looks like a ticker: look it up live
+  const has = l.length >= 4 ? S.universe.find(u => (u.n || "").toLowerCase().includes(l)) : null;
+  return has ? has.s : up;
 }
 $("#searchForm").onsubmit = e => {
   e.preventDefault();

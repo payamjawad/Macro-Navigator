@@ -3,18 +3,36 @@
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), {status, headers: {"Content-Type": "application/json", "Cache-Control": "max-age=900"}});
 const UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"};
 
+// Stooq: free daily prices without a key, used when Yahoo refuses requests from cloud servers.
+const STOOQ = {"^GSPC": "^spx", "^NDX": "^ndx", "^IXIC": "^ndq", "^DJI": "^dji"};
+export async function stooq(sym, fetcher = fetch) {
+  const s = STOOQ[sym] || (sym.toLowerCase() + (sym.includes(".") || sym.startsWith("^") ? "" : ".us"));
+  let r;
+  try { r = await fetcher(`https://stooq.com/q/d/l/?s=${encodeURIComponent(s)}&i=d`, {headers: UA}); } catch (e) { return null; }
+  if (!r || !r.ok) return null;
+  const lines = (await r.text()).trim().split(/\r?\n/);
+  if (lines.length < 61 || !/^date,/i.test(lines[0])) return null;
+  const head = lines[0].toLowerCase().split(","), iD = head.indexOf("date"), iC = head.indexOf("close");
+  const pts = lines.slice(1).slice(-520).map(l => l.split(",")).map(c => [Date.parse(c[iD] + "T21:00:00Z") / 1000, parseFloat(c[iC])])
+    .filter(p => isFinite(p[0]) && isFinite(p[1]));
+  return pts.length >= 60 ? {meta: {symbol: sym, shortName: sym, source: "stooq"}, pts} : null;
+}
+
 export async function chart(sym, fetcher = fetch) {
   for (const host of ["query1", "query2"]) {
-    const r = await fetcher(`https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=2y&interval=1d&includeAdjustedClose=true`, {headers: UA});
+    let r;
+    try { r = await fetcher(`https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=2y&interval=1d&includeAdjustedClose=true`, {headers: UA}); }
+    catch (e) { continue; }
     if (!r.ok) continue;
-    const d = await r.json();
+    let d;
+    try { d = await r.json(); } catch (e) { continue; }
     const res = d?.chart?.result?.[0];
     if (!res || !res.timestamp) continue;
     const close = res.indicators?.adjclose?.[0]?.adjclose || res.indicators?.quote?.[0]?.close || [];
     const pts = res.timestamp.map((t, i) => [t, close[i]]).filter(p => p[1] != null && isFinite(p[1]));
     if (pts.length) return {meta: res.meta || {}, pts};
   }
-  return null;
+  return stooq(sym, fetcher);
 }
 
 const ret = (p, n) => (p.length > n ? p[p.length - 1] / p[p.length - 1 - n] - 1 : null);
@@ -67,12 +85,12 @@ export function view(sym, meta, m, summary) {
   flips.push({name: "Add it to the watchlist", text: "The next refresh adds its sector and SEC fundamentals layers."});
   return {symbol: sym, name: meta.longName || meta.shortName || sym, kind: "stock", sector: null, live: true, metrics: m, layers,
     headline: head[0], headline_tone: head[1],
-    horizons: [{h: "1–3 months", text: short[0], tone: short[1], tag: "Research-backed"},
-      {h: "6–12 months", text: "Unclear: layers disagree", tone: "neutral", tag: "No model edge"},
+    horizons: [{h: "1–3 months", text: short[0].replace("Momentum", "Own trend") + " (not a tested edge)", tone: "neutral", tag: "No proven edge"},
+      {h: "6–12 months", text: "Unclear: layers disagree", tone: "neutral", tag: "No proven edge"},
       {h: "3–5 years", text: "Set by the business", tone: "warn", tag: "Not modelled yet"}],
     flips, risk_evidence: null,
-    reading: `Live lookup from prices. ${nb} of ${layers.length} layers lean against it and ${ng} support it`
-      + (m.beta != null ? `; it tends to move about ${m.beta.toFixed(1)}× the market` : "") + "."};
+    reading: `Live lookup from prices${meta.source === "stooq" ? " (Stooq)" : ""}. ${nb} of ${layers.length} layers lean against it and ${ng} support it`
+      + (m.beta != null ? `; it tends to move about ${m.beta.toFixed(1)}× the market` : "") + ". In 2026 tests none of these layers predicted single-stock returns: use them for context and size, not timing."};
 }
 
 export async function onRequestGet({request, env}) {

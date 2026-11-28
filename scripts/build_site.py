@@ -249,9 +249,12 @@ def load_universe(store: Path) -> list[dict]:
             for m in wiki_members(url):
                 if "S%26P_500" in url:
                     m["sp500"] = True
+                else:
+                    m["ndx"] = True
                 members.setdefault(m["s"], m)
-                if m.get("sp500"):
-                    members[m["s"]]["sp500"] = True
+                for flag in ("sp500", "ndx"):
+                    if m.get(flag):
+                        members[m["s"]][flag] = True
                 if not members[m["s"]].get("sector") and m.get("sector"):
                     members[m["s"]].update({k: m[k] for k in ("sector", "sub")})
         if len(members) > 300:
@@ -408,6 +411,20 @@ def key_dates(D: pd.DataFrame, n: int = 6) -> list:
     return out[:n]
 
 
+def after_dips(item: dict, prices: pd.DataFrame, sym: str, dips: dict) -> dict | None:
+    """The stock's record after the index's past falls like today's (Nasdaq-100 for its members, else the S&P 500)."""
+    name = "Nasdaq-100" if item.get("ndx") and "Nasdaq-100" in dips else ("S&P 500" if "S&P 500" in dips else None)
+    if not name:
+        return None
+    try:
+        import recession
+        d = dips[name]
+        res = recession.stock_after_dips(prices, sym, d["col"], d["dates"])
+    except Exception:
+        return None
+    return (res or {}) | {"index": name, "state": d.get("state"), "from_high": d.get("from_high")} if res else None
+
+
 def market_link(asset_m: pd.Series, spx_m: pd.Series, broken: pd.Series, vix_flag: pd.Series | None,
                 now_state: bool | None = None) -> dict | None:
     """How this asset actually behaved in the S&P 500's situations (the S&P is where the signals are tested)."""
@@ -551,6 +568,7 @@ def ticker_view(item: dict, prices: pd.DataFrame, spx: pd.Series, fund: dict, ec
     return {"symbol": s, "name": item.get("n") or s, "kind": kind, "sector": item.get("sector"), "sector_etf": etf,
             "metrics": m, "sector_metrics": sector_m, "fundamentals": f, "market_link": link, "evidence": evidence_badge(kind, m),
             "earnings": (ctx or {}).get("earn", {}).get(s), "financials": (ctx or {}).get("fin", {}).get(s),
+            "after_dips": after_dips(item, prices, s, (ctx or {}).get("dips") or {}) if kind == "stock" else None,
             "layers": layers, "headline": head[0],
             "headline_tone": head[1], "horizons": horizons, "flips": flips, "risk_evidence": ev, "reading": reading}
 
@@ -560,7 +578,8 @@ def ticker_view(item: dict, prices: pd.DataFrame, spx: pd.Series, fund: dict, ec
 def build(store: Path, out: Path, skip_network: bool = False) -> dict:
     t0 = time.time()
     P = load_panel(store)
-    D = load_daily(store, cols=("px:^GSPC", "px:^VIX", "fred:DGS10", "fred:DCOILBRENTEU", "px:BZ=F", "fred:BAMLH0A0HYM2", "fred:DFEDTARU"))
+    D = load_daily(store, cols=("px:^GSPC", "px:^VIX", "fred:DGS10", "fred:DCOILBRENTEU", "px:BZ=F", "fred:BAMLH0A0HYM2", "fred:DFEDTARU",
+                                "px:^NDX", "px:^IXIC", "fred:DGS2", "fred:ICSA"))
     res = json.loads((store / "engine_results.json").read_text())
     econ = economy_block(P, res)
     market = {"criteria": res.get("criteria"), "call": res.get("call"), "analog": res.get("analog"), "combo": res.get("combo_now"),
@@ -653,6 +672,16 @@ def build(store: Path, out: Path, skip_network: bool = False) -> dict:
         print(f"  company data unavailable ({err.__class__.__name__}: {err})")
     market["forward_test"] = fwd
     summary["key_dates"] = key_dates(D)
+    watch, G = None, None
+    try:
+        import recession
+        watch, G = recession.recession_watch(store, P, D)
+        market["situation"] = recession.situation(D, G, (watch or {}).get("level"))
+        print(f"  recession watch: {(watch or {}).get('level')}; situation for {len(market['situation']['indices'])} indices")
+    except Exception as err:
+        print(f"  recession watch unavailable ({err.__class__.__name__}: {err})")
+        market["situation"] = None
+    summary["recession_watch"] = watch
     market["tested_rejected"] = tested
     S, spx_m = build_signals(P)
     ma10 = spx_m.rolling(10).mean()
@@ -660,7 +689,12 @@ def build(store: Path, out: Path, skip_network: bool = False) -> dict:
     month_complete = (res.get("criteria") or {}).get("month_complete", True)
     brd = br.dropna()
     broken_now = (bool(brd.iloc[-1 if month_complete else -2] == 1) if len(brd) >= 2 else None)  # the confirmed month-end state
-    ctx = {"earn": earn, "fin": fin, "broken_now": broken_now, "broken": br,
+    dips_ctx = {}
+    for nm, colname in (("S&P 500", "px:^GSPC"), ("Nasdaq-100", "px:^NDX")):
+        it = ((market.get("situation") or {}).get("indices") or {}).get(nm)
+        if it and it.get("event_dates") and colname in D:
+            dips_ctx[nm] = {"col": D[colname], "dates": it["event_dates"], "state": it.get("state"), "from_high": it.get("from_high")}
+    ctx = {"earn": earn, "fin": fin, "dips": dips_ctx, "broken_now": broken_now, "broken": br,
            "vix": S["Volatility stress (VIX 30+ at month-end)"][0] if "Volatility stress (VIX 30+ at month-end)" in S else None}
     on_def = [d["signal"] for d in crit.get("defensive", []) if d.get("now")]
     flag = pd.concat([S[n][0] for n in on_def if n in S], axis=1).min(axis=1) if on_def else None
