@@ -411,6 +411,16 @@ def key_dates(D: pd.DataFrame, n: int = 6) -> list:
     return out[:n]
 
 
+def stock_outlook_for(prices: pd.DataFrame, sym: str, beta, octx: dict | None) -> dict | None:
+    if not octx or octx.get("spx") is None or sym not in prices:
+        return None
+    try:
+        import outlook
+        return outlook.stock_outlook(prices[sym], octx["spx"], beta, octx.get("m12"), octx.get("rf", 0.04))
+    except Exception:
+        return None
+
+
 def after_dips(item: dict, prices: pd.DataFrame, sym: str, dips: dict) -> dict | None:
     """The stock's record after the index's past falls like today's (Nasdaq-100 for its members, else the S&P 500)."""
     name = "Nasdaq-100" if item.get("ndx") and "Nasdaq-100" in dips else ("S&P 500" if "S&P 500" in dips else None)
@@ -569,6 +579,7 @@ def ticker_view(item: dict, prices: pd.DataFrame, spx: pd.Series, fund: dict, ec
             "metrics": m, "sector_metrics": sector_m, "fundamentals": f, "market_link": link, "evidence": evidence_badge(kind, m),
             "earnings": (ctx or {}).get("earn", {}).get(s), "financials": (ctx or {}).get("fin", {}).get(s),
             "after_dips": after_dips(item, prices, s, (ctx or {}).get("dips") or {}) if kind == "stock" else None,
+            "outlook": stock_outlook_for(prices, s, m.get("beta"), (ctx or {}).get("outlook")) if kind == "stock" else None,
             "layers": layers, "headline": head[0],
             "headline_tone": head[1], "horizons": horizons, "flips": flips, "risk_evidence": ev, "reading": reading}
 
@@ -682,6 +693,23 @@ def build(store: Path, out: Path, skip_network: bool = False) -> dict:
         print(f"  recession watch unavailable ({err.__class__.__name__}: {err})")
         market["situation"] = None
     summary["recession_watch"] = watch
+    out_ctx = None
+    try:
+        import outlook
+        trr = market.get("trend_rule") or {}
+        lvl = (watch or {}).get("level")
+        ol = {}
+        if "px:^GSPC" in D:
+            ol["S&P 500"] = outlook.market_outlook("S&P 500", D["px:^GSPC"], D["px:^GSPC"], P, trr.get("now"), trr.get("live"), lvl, "1950-01-01")
+        if "px:^NDX" in D and "px:^GSPC" in D:
+            ol["Nasdaq-100"] = outlook.market_outlook("Nasdaq-100", D["px:^NDX"], D["px:^GSPC"], None, trr.get("now"), trr.get("live"), lvl, "1986-01-01")
+        market["outlook"] = {k: v for k, v in ol.items() if v}
+        m12 = ((market["outlook"].get("S&P 500") or {}).get("12 months") or {}).get("median")
+        tb = col(P, "fred:TB3MS").dropna()
+        out_ctx = {"spx": D["px:^GSPC"] if "px:^GSPC" in D else None, "m12": m12, "rf": float(tb.iloc[-1]) / 100 if len(tb) else 0.04}
+    except Exception as err:
+        print(f"  outlook unavailable ({err.__class__.__name__}: {err})")
+        market["outlook"] = None
     market["tested_rejected"] = tested
     S, spx_m = build_signals(P)
     ma10 = spx_m.rolling(10).mean()
@@ -694,7 +722,7 @@ def build(store: Path, out: Path, skip_network: bool = False) -> dict:
         it = ((market.get("situation") or {}).get("indices") or {}).get(nm)
         if it and it.get("event_dates") and colname in D:
             dips_ctx[nm] = {"col": D[colname], "dates": it["event_dates"], "state": it.get("state"), "from_high": it.get("from_high")}
-    ctx = {"earn": earn, "fin": fin, "dips": dips_ctx, "broken_now": broken_now, "broken": br,
+    ctx = {"earn": earn, "fin": fin, "dips": dips_ctx, "outlook": out_ctx, "broken_now": broken_now, "broken": br,
            "vix": S["Volatility stress (VIX 30+ at month-end)"][0] if "Volatility stress (VIX 30+ at month-end)" in S else None}
     on_def = [d["signal"] for d in crit.get("defensive", []) if d.get("now")]
     flag = pd.concat([S[n][0] for n in on_def if n in S], axis=1).min(axis=1) if on_def else None
